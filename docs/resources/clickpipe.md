@@ -7,6 +7,8 @@ description: |-
   Supported source types: Kafka (Confluent, MSK, Azure Event Hubs, Redpanda, WarpStream), Object Storage (S3, GCS, Azure Blob), Kinesis, Postgres CDC, MySQL CDC, BigQuery, and MongoDB CDC.
   Known limitations:
   ClickPipe does not support table updates for managed tables. If you need to update the table schema, you will have to do that externally.Changing the source type of an existing ClickPipe will force replacement (destroy and recreate).
+  Table resync (Postgres, MySQL and MongoDB CDC pipes):
+  Changing a table mapping's resync_version, e.g. incrementing it, resyncs that table: it is copied again from the source with the mapping's current settings, then replaces its current destination table. Replication of the other tables is paused until the resync completes; track its progress in the ClickHouse Cloud console.Changing any other attribute of an existing mapping, except target_table, requires changing its resync_version in the same apply. target_table cannot be changed: remove the mapping and add a new one.Removing resync_version, or setting it on a new mapping, resyncs nothing.
 ---
 
 # clickhouse_clickpipe (Resource)
@@ -19,6 +21,12 @@ Known limitations:
 
 - ClickPipe does not support table updates for managed tables. If you need to update the table schema, you will have to do that externally.
 - Changing the source type of an existing ClickPipe will force replacement (destroy and recreate).
+
+Table resync (Postgres, MySQL and MongoDB CDC pipes):
+
+- Changing a table mapping's `resync_version`, e.g. incrementing it, resyncs that table: it is copied again from the source with the mapping's current settings, then replaces its current destination table. Replication of the other tables is paused until the resync completes; track its progress in the ClickHouse Cloud console.
+- Changing any other attribute of an existing mapping, except `target_table`, requires changing its `resync_version` in the same apply. `target_table` cannot be changed: remove the mapping and add a new one.
+- Removing `resync_version`, or setting it on a new mapping, resyncs nothing.
 
 ## Example Usage
 
@@ -426,7 +434,7 @@ Required:
 Optional:
 
 - `persist_deleted_documents` (Boolean) Persist the full document as it was right before it was deleted, instead of just its `_id`, when MongoDB delete events are ingested. Requires `changeStreamPreAndPostImages` to be enabled on the source collection. Has no effect on `snapshot` only pipes.
-- `resync_version` (Number) Change this value, e.g. increment it, to resync the collection: it is copied again from the source with the mapping's current settings, then replaces its current destination table. Replication of the other tables is paused until the resync completes; track its progress in the ClickHouse Cloud console. Changing any other attribute of an existing mapping, except `target_table`, requires changing this value in the same apply. Removing it, or setting it on a new mapping, resyncs nothing.
+- `resync_version` (Number) Change this value to resync the collection. See *Table resync* above.
 - `structured_ingestion` (Attributes) Replicate the collection into typed ClickHouse columns instead of a single JSON document column. Setting this block enables structured ingestion. When `columns` is omitted, they are inferred from a sample of the collection documents, however inference is not available for pipes using `ssh_key_resource_id`. Changing it on an existing table mapping requires changing `resync_version` in the same apply, with `columns` set as they are not inferred on resync. (see [below for nested schema](#nestedatt--source--mongodb--table_mappings--structured_ingestion))
 - `table_engine` (String) Table engine to use for the target table. (`MergeTree`, `ReplacingMergeTree`, `Null`)
 
@@ -524,7 +532,7 @@ Optional:
 - `excluded_columns` (Set of String) Columns to exclude from replication.
 - `partition_by_expr` (String) ClickHouse PARTITION BY expression applied to the destination table when ClickPipes creates it. Changing it on an existing table mapping requires changing `resync_version` in the same apply.
 - `partition_key` (String) Custom partitioning column used for parallel snapshotting. Must be an indexed column of integer, date, datetime, or timestamp type.
-- `resync_version` (Number) Change this value, e.g. increment it, to resync the table: it is copied again from the source with the mapping's current settings, then replaces its current destination table. Replication of the other tables is paused until the resync completes; track its progress in the ClickHouse Cloud console. Changing any other attribute of an existing mapping, except `target_table`, requires changing this value in the same apply. Removing it, or setting it on a new mapping, resyncs nothing.
+- `resync_version` (Number) Change this value to resync the table. See *Table resync* above.
 - `sorting_keys` (List of String) Ordered list of columns to use as sorting key for the target table. Required when use_custom_sorting_key is true.
 - `table_engine` (String) Table engine to use for the target table. (`MergeTree`, `ReplacingMergeTree`, `Null`)
 - `use_custom_sorting_key` (Boolean) Whether to use a custom sorting key for the target table.
@@ -638,7 +646,7 @@ Optional:
 - `excluded_columns` (Set of String) Columns to exclude from replication.
 - `partition_by_expr` (String) ClickHouse PARTITION BY expression applied to the destination table when ClickPipes creates it. Changing it on an existing table mapping requires changing `resync_version` in the same apply.
 - `partition_key` (String) Custom partitioning column used for parallel snapshotting. Only beneficial for PostgreSQL 13 (no benefit for PG14+, which supports indexed ctid scans). Must be an indexed column of type: `smallint`, `integer`, `bigint`, `timestamp without time zone`, or `timestamp with time zone`. Unrelated to ClickHouse partitioning.
-- `resync_version` (Number) Change this value, e.g. increment it, to resync the table: it is copied again from the source with the mapping's current settings, then replaces its current destination table. Replication of the other tables is paused until the resync completes; track its progress in the ClickHouse Cloud console. Changing any other attribute of an existing mapping, except `target_table`, requires changing this value in the same apply. Removing it, or setting it on a new mapping, resyncs nothing.
+- `resync_version` (Number) Change this value to resync the table. See *Table resync* above.
 - `sorting_keys` (List of String) Ordered list of columns to use as sorting key for the target table. Required when use_custom_sorting_key is true.
 - `table_engine` (String) Table engine to use for the target table. (`MergeTree`, `ReplacingMergeTree`, `Null`)
 - `use_custom_sorting_key` (Boolean) Whether to use a custom sorting key for the target table.

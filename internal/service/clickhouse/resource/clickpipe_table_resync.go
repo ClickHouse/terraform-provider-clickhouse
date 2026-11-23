@@ -24,17 +24,12 @@ import (
 const clickPipeResyncVersion = "resync_version"
 
 // clickPipeResyncVersionAttribute is the resync_version attribute of a CDC
-// table mapping. It is not sent to the API.
+// table mapping. It is not sent to the API. The resync behavior is described
+// once in the resource description (descriptions/clickpipe.md).
 func clickPipeResyncVersionAttribute(tableNoun string) schema.Int64Attribute {
 	return schema.Int64Attribute{
-		MarkdownDescription: fmt.Sprintf(
-			"Change this value, e.g. increment it, to resync the %[1]s: it is copied again from the source with the mapping's current settings, then replaces its current destination table. "+
-				"Replication of the other tables is paused until the resync completes; track its progress in the ClickHouse Cloud console. "+
-				"Changing any other attribute of an existing mapping, except `target_table`, requires changing this value in the same apply. "+
-				"Removing it, or setting it on a new mapping, resyncs nothing.",
-			tableNoun,
-		),
-		Optional: true,
+		MarkdownDescription: fmt.Sprintf("Change this value to resync the %s. See *Table resync* above.", tableNoun),
+		Optional:            true,
 	}
 }
 
