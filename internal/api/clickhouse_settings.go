@@ -30,8 +30,10 @@ type serviceClickhouseSettingsList struct {
 	Settings []serviceClickhouseSetting `json:"settings"`
 }
 
+// The API rejects a null or empty `settings` and an empty `resetSettings`.
 type serviceClickhouseSettingsPatchRequest struct {
-	Settings map[string]any `json:"settings"`
+	Settings      map[string]any `json:"settings,omitempty"`
+	ResetSettings []string       `json:"resetSettings,omitempty"`
 }
 
 type serviceClickhouseSettingsPatchResponse struct {
@@ -68,8 +70,10 @@ func (c *ClientImpl) ListServiceClickhouseSettings(ctx context.Context, serviceI
 	return settings, nil
 }
 
-func (c *ClientImpl) UpdateServiceClickhouseSettings(ctx context.Context, serviceId string, settings map[string]any) (*ServiceClickhouseSettingsUpdateResult, error) {
-	rb, err := json.Marshal(serviceClickhouseSettingsPatchRequest{Settings: settings})
+// UpdateServiceClickhouseSettings sets settings and resets resetSettings to
+// their platform default in one request.
+func (c *ClientImpl) UpdateServiceClickhouseSettings(ctx context.Context, serviceId string, settings map[string]any, resetSettings []string) (*ServiceClickhouseSettingsUpdateResult, error) {
+	rb, err := json.Marshal(serviceClickhouseSettingsPatchRequest{Settings: settings, ResetSettings: resetSettings})
 	if err != nil {
 		return nil, err
 	}
@@ -113,6 +117,38 @@ func (c *ClientImpl) DeleteServiceClickhouseSetting(ctx context.Context, service
 
 	_, err = c.doRequest(ctx, req)
 	return err
+}
+
+// ServiceClickhouseSettingSchemaEntry is one configurable setting. Warning is
+// free text describing how a change takes effect, such as a rollout restart or
+// a short propagation delay. It can be empty.
+type ServiceClickhouseSettingSchemaEntry struct {
+	Name    string `json:"name"`
+	Warning string `json:"warning"`
+}
+
+type serviceClickhouseSettingsSchema struct {
+	Settings []ServiceClickhouseSettingSchemaEntry `json:"settings"`
+}
+
+// GetServiceClickhouseSettingsSchema lists every setting the service accepts.
+func (c *ClientImpl) GetServiceClickhouseSettingsSchema(ctx context.Context, serviceId string) ([]ServiceClickhouseSettingSchemaEntry, error) {
+	req, err := http.NewRequest(http.MethodGet, c.getServicePath(serviceId, "/clickhouseSettings/schema"), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := c.doRequest(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	response := ResponseWithResult[serviceClickhouseSettingsSchema]{}
+	if err := json.Unmarshal(body, &response); err != nil {
+		return nil, err
+	}
+
+	return response.Result.Settings, nil
 }
 
 func clickhouseSettingValueString(raw json.RawMessage) (string, error) {

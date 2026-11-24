@@ -16,6 +16,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service"
@@ -177,9 +178,6 @@ func (r *ServiceClickhouseSettingsResource) Update(ctx context.Context, req reso
 			changed[name] = value
 		}
 	}
-	if len(changed) > 0 && !r.applySettings(ctx, serviceID, changed, &resp.Diagnostics) {
-		return
-	}
 
 	var removed []string
 	for _, name := range sortedKeys(previous) {
@@ -187,7 +185,8 @@ func (r *ServiceClickhouseSettingsResource) Update(ctx context.Context, req reso
 			removed = append(removed, name)
 		}
 	}
-	if !r.resetSettings(ctx, serviceID, removed, &resp.Diagnostics) {
+
+	if !r.writeSettings(ctx, settingsWrite{serviceID: serviceID, set: changed, reset: removed}, &resp.Diagnostics) {
 		return
 	}
 
@@ -208,7 +207,11 @@ func (r *ServiceClickhouseSettingsResource) Delete(ctx context.Context, req reso
 		return
 	}
 
-	r.resetSettings(ctx, state.ServiceID.ValueString(), sortedKeys(managed), &resp.Diagnostics)
+	r.writeSettings(ctx, settingsWrite{
+		serviceID:        state.ServiceID.ValueString(),
+		reset:            sortedKeys(managed),
+		serviceMayBeGone: true,
+	}, &resp.Diagnostics)
 }
 
 // ImportState adopts every setting currently configured on the service.
@@ -242,23 +245,110 @@ func (r *ServiceClickhouseSettingsResource) ImportState(ctx context.Context, req
 // applySettings PATCHes the settings and shows the server's warnings. It
 // returns false when it added an error.
 func (r *ServiceClickhouseSettingsResource) applySettings(ctx context.Context, serviceID string, settings map[string]string, diags *diag.Diagnostics) bool {
-	result, err := r.client.UpdateServiceClickhouseSettings(ctx, serviceID, clickhouseSettingsPayload(settings))
+	result, err := r.client.UpdateServiceClickhouseSettings(ctx, serviceID, clickhouseSettingsPayload(settings), nil)
 	if err != nil {
 		diags.AddError("Error updating ClickHouse settings", err.Error())
 		return false
 	}
 
-	for _, w := range result.Warnings {
-		diags.AddWarning(fmt.Sprintf("ClickHouse setting %q", w.Name), w.Message)
-	}
-
+	addClickhouseSettingWarnings(result.Warnings, diags)
 	return true
 }
 
-// resetSettings reverts settings to their platform default. A 404 means the
-// service is gone or the API no longer knows the setting; either way there is
-// nothing to reset for that name.
-func (r *ServiceClickhouseSettingsResource) resetSettings(ctx context.Context, serviceID string, names []string, diags *diag.Diagnostics) bool {
+// Substring of the API's 400 "request body property can't be validated: resetSettings", sent by an API that
+// predates resetSettings; it rejects the whole PATCH, so nothing in it was applied.
+const resetSettingsUnsupported = "property can't be validated: resetSettings"
+
+// Substring of the API's 400 when a setting name isn't configurable; the API then rejects the whole PATCH.
+const unknownSetting = "Unknown setting"
+
+type settingsWrite struct {
+	serviceID string
+	set       map[string]string
+	reset     []string
+	// True on destroy, where a 404 means the service is already gone.
+	serviceMayBeGone bool
+}
+
+// writeSettings sends changes and resets in one PATCH, so the service restarts
+// at most once. It falls back to a settings PATCH and one DELETE per reset when
+// the API doesn't support resetSettings, or rejects an unknown setting after the
+// schema read failed. It returns false when it added an error.
+func (r *ServiceClickhouseSettingsResource) writeSettings(ctx context.Context, w settingsWrite, diags *diag.Diagnostics) bool {
+	reset := w.reset
+	resetNamesUnfiltered := false
+	if len(reset) > 0 {
+		// The API rejects the whole PATCH for a name it no longer accepts, so drop retired names first.
+		entries, err := r.client.GetServiceClickhouseSettingsSchema(ctx, w.serviceID)
+		switch {
+		case err == nil:
+			reset = knownClickhouseSettings(reset, entries)
+			if len(reset) < len(w.reset) {
+				tflog.Debug(ctx, "skipping ClickHouse settings the service no longer offers", map[string]any{"requested": w.reset, "sent": reset})
+			}
+		case api.IsNotFound(err) && w.serviceMayBeGone:
+			return true
+		case api.IsNotFound(err):
+			diags.AddError("Error reading ClickHouse settings schema", err.Error())
+			return false
+		default:
+			tflog.Warn(ctx, "could not read the ClickHouse settings schema; sending every reset name", map[string]any{"error": err.Error()})
+			resetNamesUnfiltered = true
+		}
+	}
+
+	if len(w.set) == 0 && len(reset) == 0 {
+		return true
+	}
+
+	result, err := r.client.UpdateServiceClickhouseSettings(ctx, w.serviceID, clickhouseSettingsPayload(w.set), reset)
+	switch {
+	case err == nil:
+		addClickhouseSettingWarnings(result.Warnings, diags)
+		return true
+	case api.IsNotFound(err) && w.serviceMayBeGone:
+		return true
+	// When the schema read failed, a retired name may still be in the PATCH; per-name DELETE treats its 404 as already reset.
+	// An unknown name in settings also matches, and then fails again in applySettings.
+	case api.IsBadRequestWith(err, resetSettingsUnsupported),
+		resetNamesUnfiltered && api.IsBadRequestWith(err, unknownSetting):
+		tflog.Warn(ctx, "API rejected the batched reset; resetting ClickHouse settings one request at a time", map[string]any{"error": err.Error(), "names": reset})
+		if len(w.set) > 0 && !r.applySettings(ctx, w.serviceID, w.set, diags) {
+			return false
+		}
+		return r.resetSettingsOneByOne(ctx, w.serviceID, reset, diags)
+	default:
+		diags.AddError("Error updating ClickHouse settings", err.Error())
+		return false
+	}
+}
+
+func addClickhouseSettingWarnings(warnings []api.ServiceClickhouseSettingWarning, diags *diag.Diagnostics) {
+	for _, w := range warnings {
+		diags.AddWarning(fmt.Sprintf("ClickHouse setting %q", w.Name), w.Message)
+	}
+}
+
+// knownClickhouseSettings keeps the names the schema still lists, in order.
+func knownClickhouseSettings(names []string, entries []api.ServiceClickhouseSettingSchemaEntry) []string {
+	known := make(map[string]bool, len(entries))
+	for _, entry := range entries {
+		known[entry.Name] = true
+	}
+
+	var result []string
+	for _, name := range names {
+		if known[name] {
+			result = append(result, name)
+		}
+	}
+	return result
+}
+
+// resetSettingsOneByOne reverts settings with one DELETE each, for an API
+// without resetSettings. A 404 means the service is gone or the API no longer
+// knows the setting; either way there is nothing to reset for that name.
+func (r *ServiceClickhouseSettingsResource) resetSettingsOneByOne(ctx context.Context, serviceID string, names []string, diags *diag.Diagnostics) bool {
 	for _, name := range names {
 		err := r.client.DeleteServiceClickhouseSetting(ctx, serviceID, name)
 		if api.IsNotFound(err) {

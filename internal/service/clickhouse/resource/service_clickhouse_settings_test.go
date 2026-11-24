@@ -43,18 +43,23 @@ func TestManagedClickhouseSettings_IgnoresUnmanagedAndDropsMissing(t *testing.T)
 	}
 }
 
-func TestServiceClickhouseSettingsResource_Update_PatchesChangedAndResetsRemoved(t *testing.T) {
+func TestServiceClickhouseSettingsResource_Update_ChangesAndResetsInOnePatch(t *testing.T) {
+	t.Setenv("CLICKHOUSE_SUPPRESS_BETA_WARNINGS", "true")
 	ctx := context.Background()
 	r, sch := clickhouseSettingsResourceWithSchema(t)
 
 	mc := minimock.NewController(t)
 	r.client = api.NewClientMock(mc).
+		GetServiceClickhouseSettingsSchemaMock.
+		Expect(ctx, "svc-1").
+		Return(clickhouseSettingsSchema("compatibility", "max_query_size", "keep_alive_timeout"), nil).
 		UpdateServiceClickhouseSettingsMock.
-		Expect(ctx, "svc-1", map[string]any{"max_query_size": int64(524288)}).
-		Return(&api.ServiceClickhouseSettingsUpdateResult{Settings: map[string]string{"max_query_size": "524288"}}, nil).
-		DeleteServiceClickhouseSettingMock.
-		Expect(ctx, "svc-1", "keep_alive_timeout").
-		Return(nil)
+		Times(1).
+		Expect(ctx, "svc-1", map[string]any{"max_query_size": int64(524288)}, []string{"keep_alive_timeout"}).
+		Return(&api.ServiceClickhouseSettingsUpdateResult{
+			Settings: map[string]string{"max_query_size": "524288"},
+			Warnings: []api.ServiceClickhouseSettingWarning{{Name: "keep_alive_timeout", Message: "restarts the service"}},
+		}, nil)
 
 	state := clickhouseSettingsRaw(ctx, sch, "svc-1", map[string]string{
 		"compatibility":      "26.2",
@@ -66,11 +71,31 @@ func TestServiceClickhouseSettingsResource_Update_PatchesChangedAndResetsRemoved
 		"max_query_size": "524288",
 	})
 
-	resp := &resource.UpdateResponse{State: tfsdk.State{Schema: sch, Raw: state}}
-	r.Update(ctx, resource.UpdateRequest{
-		Plan:  tfsdk.Plan{Schema: sch, Raw: plan},
-		State: tfsdk.State{Schema: sch, Raw: state},
-	}, resp)
+	resp := runClickhouseSettingsUpdate(ctx, r, sch, state, plan)
+
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("Update diags: %v", resp.Diagnostics)
+	}
+	if len(resp.Diagnostics) != 1 || resp.Diagnostics[0].Detail() != "restarts the service" {
+		t.Errorf("diagnostics = %v; want one warning with detail \"restarts the service\"", resp.Diagnostics)
+	}
+}
+
+func TestServiceClickhouseSettingsResource_Update_ChangeOnlySkipsSchemaRead(t *testing.T) {
+	t.Setenv("CLICKHOUSE_SUPPRESS_BETA_WARNINGS", "true")
+	ctx := context.Background()
+	r, sch := clickhouseSettingsResourceWithSchema(t)
+
+	mc := minimock.NewController(t)
+	r.client = api.NewClientMock(mc).
+		UpdateServiceClickhouseSettingsMock.
+		Expect(ctx, "svc-1", map[string]any{"max_query_size": int64(524288)}, nil).
+		Return(&api.ServiceClickhouseSettingsUpdateResult{Settings: map[string]string{"max_query_size": "524288"}}, nil)
+
+	state := clickhouseSettingsRaw(ctx, sch, "svc-1", map[string]string{"max_query_size": "262144"})
+	plan := clickhouseSettingsRaw(ctx, sch, "svc-1", map[string]string{"max_query_size": "524288"})
+
+	resp := runClickhouseSettingsUpdate(ctx, r, sch, state, plan)
 
 	if resp.Diagnostics.HasError() {
 		t.Fatalf("Update diags: %v", resp.Diagnostics)
@@ -85,7 +110,7 @@ func TestServiceClickhouseSettingsResource_Create_SurfacesWarnings(t *testing.T)
 	mc := minimock.NewController(t)
 	r.client = api.NewClientMock(mc).
 		UpdateServiceClickhouseSettingsMock.
-		Expect(ctx, "svc-1", map[string]any{"compatibility": "26.2"}).
+		Expect(ctx, "svc-1", map[string]any{"compatibility": "26.2"}, nil).
 		Return(&api.ServiceClickhouseSettingsUpdateResult{
 			Settings: map[string]string{"compatibility": "26.2"},
 			Warnings: []api.ServiceClickhouseSettingWarning{{Name: "compatibility", Message: "test first"}},
@@ -113,6 +138,29 @@ func clickhouseSettingsResourceWithSchema(t *testing.T) (*ServiceClickhouseSetti
 		t.Fatalf("Schema: %v", schemaResp.Diagnostics)
 	}
 	return r, schemaResp.Schema
+}
+
+func clickhouseSettingsSchema(names ...string) []api.ServiceClickhouseSettingSchemaEntry {
+	entries := make([]api.ServiceClickhouseSettingSchemaEntry, 0, len(names))
+	for _, name := range names {
+		entries = append(entries, api.ServiceClickhouseSettingSchemaEntry{Name: name})
+	}
+	return entries
+}
+
+func runClickhouseSettingsUpdate(ctx context.Context, r *ServiceClickhouseSettingsResource, sch schema.Schema, state, plan tftypes.Value) *resource.UpdateResponse {
+	resp := &resource.UpdateResponse{State: tfsdk.State{Schema: sch, Raw: state}}
+	r.Update(ctx, resource.UpdateRequest{
+		Plan:  tfsdk.Plan{Schema: sch, Raw: plan},
+		State: tfsdk.State{Schema: sch, Raw: state},
+	}, resp)
+	return resp
+}
+
+func runClickhouseSettingsDelete(ctx context.Context, r *ServiceClickhouseSettingsResource, sch schema.Schema, state tftypes.Value) *resource.DeleteResponse {
+	resp := &resource.DeleteResponse{State: tfsdk.State{Schema: sch, Raw: state}}
+	r.Delete(ctx, resource.DeleteRequest{State: tfsdk.State{Schema: sch, Raw: state}}, resp)
+	return resp
 }
 
 func clickhouseSettingsRaw(ctx context.Context, sch schema.Schema, serviceID string, settings map[string]string) tftypes.Value {
