@@ -23,7 +23,11 @@ func (servicePackage) Meta() service.Metadata {
 }
 
 func (servicePackage) Resources() []func() upstreamresource.Resource {
-	return []func() upstreamresource.Resource{resource.NewPostgresServiceResource}
+	return []func() upstreamresource.Resource{
+		resource.NewPostgresServiceResource,
+		resource.NewPostgresPrivateEndpointResource,
+		resource.NewPostgresPrivateEndpointAttachmentResource,
+	}
 }
 
 func (servicePackage) DataSources() []func() upstreamdatasource.DataSource {
