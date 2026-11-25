@@ -963,32 +963,36 @@ func (m ClickPipeMongoDBColumnModel) ObjectValue() types.Object {
 // ClickPipeMongoDBStructuredIngestionModel maps to structuredIngestion in the API.
 // Its presence on a table mapping enables structured ingestion.
 type ClickPipeMongoDBStructuredIngestionModel struct {
-	DropUnexpectedValues types.Bool   `tfsdk:"drop_unexpected_values"`
-	Columns              types.List   `tfsdk:"columns"`
-	ExcludedColumns      types.Set    `tfsdk:"excluded_columns"`
-	SortingKeys          types.List   `tfsdk:"sorting_keys"`
-	PartitionByExpr      types.String `tfsdk:"partition_by_expr"`
+	DropUnexpectedValues types.Bool `tfsdk:"drop_unexpected_values"`
+	Columns              types.List `tfsdk:"columns"`
+	// ReinferColumnsOnResync is only sent to the API: it is not stored, so state keeps the configured value.
+	ReinferColumnsOnResync types.Bool   `tfsdk:"reinfer_columns_on_resync"`
+	ExcludedColumns        types.Set    `tfsdk:"excluded_columns"`
+	SortingKeys            types.List   `tfsdk:"sorting_keys"`
+	PartitionByExpr        types.String `tfsdk:"partition_by_expr"`
 }
 
 func (m ClickPipeMongoDBStructuredIngestionModel) ObjectType() types.ObjectType {
 	return types.ObjectType{
 		AttrTypes: map[string]attr.Type{
-			"drop_unexpected_values": types.BoolType,
-			"columns":                types.ListType{ElemType: ClickPipeMongoDBColumnModel{}.ObjectType()},
-			"excluded_columns":       types.SetType{ElemType: types.StringType},
-			"sorting_keys":           types.ListType{ElemType: types.StringType},
-			"partition_by_expr":      types.StringType,
+			"drop_unexpected_values":    types.BoolType,
+			"columns":                   types.ListType{ElemType: ClickPipeMongoDBColumnModel{}.ObjectType()},
+			"reinfer_columns_on_resync": types.BoolType,
+			"excluded_columns":          types.SetType{ElemType: types.StringType},
+			"sorting_keys":              types.ListType{ElemType: types.StringType},
+			"partition_by_expr":         types.StringType,
 		},
 	}
 }
 
 func (m ClickPipeMongoDBStructuredIngestionModel) ObjectValue() types.Object {
 	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
-		"drop_unexpected_values": m.DropUnexpectedValues,
-		"columns":                m.Columns,
-		"excluded_columns":       m.ExcludedColumns,
-		"sorting_keys":           m.SortingKeys,
-		"partition_by_expr":      m.PartitionByExpr,
+		"drop_unexpected_values":    m.DropUnexpectedValues,
+		"columns":                   m.Columns,
+		"reinfer_columns_on_resync": m.ReinferColumnsOnResync,
+		"excluded_columns":          m.ExcludedColumns,
+		"sorting_keys":              m.SortingKeys,
+		"partition_by_expr":         m.PartitionByExpr,
 	})
 }
 

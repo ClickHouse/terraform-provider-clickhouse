@@ -2,6 +2,7 @@ package resource
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -138,7 +139,31 @@ func TestClickPipeResource_ModifyPlan_TableResync(t *testing.T) {
 				return mongoDBModelWithMappings(t, mongoDBTableMappingModel(types.BoolNull())),
 					mongoDBModelWithMappings(t, mongoDBMapping(mongoDBStructuredMapping("orders", mongoDBStructuredIngestion(unknownColumns)), types.Int64Value(1)))
 			},
-			wantError: "structured_ingestion.columns must be set to resync collection 'shop.orders'",
+			wantError: "Set structured_ingestion.columns, or set structured_ingestion.reinfer_columns_on_resync to true, to resync collection 'shop.orders'",
+		},
+		{
+			name: "mongodb enabling structured ingestion on resync with reinfer_columns_on_resync",
+			build: func(t *testing.T) (state, plan models.ClickPipeResourceModel) {
+				return mongoDBModelWithMappings(t, mongoDBTableMappingModel(types.BoolNull())),
+					mongoDBModelWithMappings(t, mongoDBMapping(mongoDBStructuredMapping("orders", mongoDBInferredOnResync(unknownColumns)), types.Int64Value(1)))
+			},
+			wantWarning: "resync_version changed for table mapping 'shop.orders'",
+		},
+		{
+			name: "mongodb reinfer_columns_on_resync on resync infers the columns again",
+			build: func(t *testing.T) (state, plan models.ClickPipeResourceModel) {
+				return mongoDBModelWithMappings(t, mongoDBStructuredMapping("replicants", mongoDBStructuredIngestion(mongoDBColumns("name", "String")))),
+					mongoDBModelWithMappings(t, mongoDBMapping(mongoDBStructuredMapping("replicants", mongoDBInferredOnResync(unknownColumns)), types.Int64Value(1)))
+			},
+			wantWarning: "resync_version changed for table mapping 'shop.replicants'",
+		},
+		{
+			// reinfer_columns_on_resync only applies on resync, so setting it alone changes nothing.
+			name: "mongodb setting reinfer_columns_on_resync alone is not a change",
+			build: func(t *testing.T) (state, plan models.ClickPipeResourceModel) {
+				return mongoDBModelWithMappings(t, mongoDBStructuredMapping("replicants", mongoDBStructuredIngestion(mongoDBColumns("name", "String")))),
+					mongoDBModelWithMappings(t, mongoDBStructuredMapping("replicants", mongoDBInferredOnResync(unknownColumns)))
+			},
 		},
 	}
 
@@ -491,8 +516,37 @@ func TestMongoDBTableMappingDeltas(t *testing.T) {
 	}
 }
 
-// Columns are only inferred for added collections, so a resync with
-// structured ingestion must provide them.
+// reinferColumns is only sent with a resync, without the columns the plan
+// still holds from state, as the API rejects it on add and with columns.
+func TestMongoDBTableMappingDeltas_ReinferColumnsOnResync(t *testing.T) {
+	ctx := context.Background()
+	mappingType := models.ClickPipeMongoDBTableMappingModel{}.ObjectType()
+
+	priorOrders := mongoDBStructuredMapping("orders", mongoDBStructuredIngestion(mongoDBColumns("name", "String")))
+	plannedOrders := mongoDBStructuredMapping("orders", mongoDBInferredOnResync(mongoDBColumns("name", "String")))
+	plannedOrders.ResyncVersion = types.Int64Value(1)
+	addedCarts := mongoDBStructuredMapping("carts", mongoDBInferredOnResync(types.ListUnknown(models.ClickPipeMongoDBColumnModel{}.ObjectType())))
+
+	var diagnostics diag.Diagnostics
+	toAdd, _, toResync := mongoDBTableMappingDeltas(ctx, &diagnostics,
+		types.SetValueMust(mappingType, []attr.Value{plannedOrders.ObjectValue(), addedCarts.ObjectValue()}),
+		types.SetValueMust(mappingType, []attr.Value{priorOrders.ObjectValue()}),
+	)
+	require.False(t, diagnostics.HasError(), "%v", diagnostics.Errors())
+
+	require.Len(t, toResync, 1)
+	resynced, err := json.Marshal(toResync[0].StructuredIngestion)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"enabled":true,"reinferColumns":true}`, string(resynced))
+
+	require.Len(t, toAdd, 1)
+	added, err := json.Marshal(toAdd[0].StructuredIngestion)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"enabled":true}`, string(added))
+}
+
+// Columns of a resynced collection are only inferred with reinfer_columns_on_resync, so a
+// resync with structured ingestion must provide them otherwise.
 func TestValidateMongoDBResyncColumns(t *testing.T) {
 	ctx := context.Background()
 	columnType := models.ClickPipeMongoDBColumnModel{}.ObjectType()
@@ -519,6 +573,27 @@ func TestValidateMongoDBResyncColumns(t *testing.T) {
 			name:                "columns null",
 			structuredIngestion: mongoDBStructuredIngestion(types.ListNull(columnType)).ObjectValue(),
 			wantError:           true,
+		},
+		{
+			name:                "columns inferred with reinfer_columns_on_resync",
+			structuredIngestion: mongoDBInferredOnResync(types.ListUnknown(columnType)).ObjectValue(),
+		},
+		{
+			name: "reinfer_columns_on_resync known only at apply",
+			structuredIngestion: func() types.Object {
+				si := mongoDBStructuredIngestion(types.ListUnknown(columnType))
+				si.ReinferColumnsOnResync = types.BoolUnknown()
+				return si.ObjectValue()
+			}(),
+		},
+		{
+			name: "reinfer_columns_on_resync false",
+			structuredIngestion: func() types.Object {
+				si := mongoDBStructuredIngestion(types.ListUnknown(columnType))
+				si.ReinferColumnsOnResync = types.BoolValue(false)
+				return si.ObjectValue()
+			}(),
+			wantError: true,
 		},
 	}
 

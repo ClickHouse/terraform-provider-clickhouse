@@ -29,6 +29,10 @@ resource "clickhouse_clickpipe" "mongodb_structured_ingestion" {
           structured_ingestion = {
             # Optional: leave inferred columns out of replication
             excluded_columns = ["internal_notes"]
+
+            # Optional: infer the columns again when the collection is resynced
+            # (see resync_version), instead of keeping the current ones.
+            reinfer_columns_on_resync = true
           }
         },
         {

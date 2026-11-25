@@ -320,12 +320,15 @@ type ClickPipeMongoDBColumn struct {
 
 // ClickPipeMongoDBStructuredIngestion replicates a collection into typed columns
 // instead of a single JSON document column. When Columns is nil the API infers
-// them from a sample of the collection. Automatic inference is not currently
-// available for pipes using an SSH key resource.
+// them from a sample of an added collection. A resynced collection is only
+// inferred again with ReinferColumns, which cannot be set together with Columns.
+// Automatic inference is not currently available for pipes using an SSH key
+// resource.
 type ClickPipeMongoDBStructuredIngestion struct {
 	Enabled              bool                     `json:"enabled"`
 	DropUnexpectedValues *bool                    `json:"dropUnexpectedValues,omitempty"`
 	Columns              []ClickPipeMongoDBColumn `json:"columns,omitempty"`
+	ReinferColumns       *bool                    `json:"reinferColumns,omitempty"`
 	ExcludedColumns      []string                 `json:"excludedColumns,omitempty"`
 	SortingKeys          []string                 `json:"sortingKeys,omitempty"`
 	PartitionByExpr      *string                  `json:"partitionByExpr,omitempty"`

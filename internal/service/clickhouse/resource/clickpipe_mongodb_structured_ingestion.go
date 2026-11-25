@@ -14,7 +14,9 @@ import (
 
 // convertMongoDBStructuredIngestionModelToAPI builds the structuredIngestion
 // payload of a table mapping. A null object means structured ingestion is off,
-// and null columns ask the API to infer them.
+// and null columns ask the API to infer them for an added collection.
+// reinfer_columns_on_resync is only sent with a resync, see
+// mongoDBTableMappingDeltas.
 func convertMongoDBStructuredIngestionModelToAPI(ctx context.Context, diagnostics *diag.Diagnostics, obj types.Object) *api.ClickPipeMongoDBStructuredIngestion {
 	if obj.IsNull() || obj.IsUnknown() {
 		return nil
@@ -47,6 +49,12 @@ func convertMongoDBStructuredIngestionModelToAPI(ctx context.Context, diagnostic
 		si.PartitionByExpr = model.PartitionByExpr.ValueStringPointer()
 	}
 	return si
+}
+
+// mayReinferColumns reports whether reinfer_columns_on_resync is set, or may
+// be once it is known at apply.
+func mayReinferColumns(reinferColumns types.Bool) bool {
+	return reinferColumns.IsUnknown() || reinferColumns.ValueBool()
 }
 
 // mongoDBDocumentKeyColumn is the MongoDB document key, the default sorting key.
@@ -96,6 +104,12 @@ func mongoDBStructuredIngestionFromAPI(ctx context.Context, apiSI *api.ClickPipe
 		model.Columns = types.ListValueMust(columnType, columns)
 	} else {
 		model.Columns = types.ListNull(columnType)
+	}
+
+	// reinfer_columns_on_resync is not stored by the API: keep the configured value.
+	model.ReinferColumnsOnResync = types.BoolNull()
+	if hasState {
+		model.ReinferColumnsOnResync = state.ReinferColumnsOnResync
 	}
 
 	// When the API omits a setting, prior state is kept only if it holds the
@@ -153,9 +167,11 @@ func stringListValue(values []string) types.List {
 // UseStateForUnknown cannot be used because set elements cannot be matched
 // with their prior state by path. Mappings are matched here by source
 // database and collection instead:
-// - An unknown or null planned value takes the state value.
-// - Configured columns are never touched.
-// - New mappings stay unknown so the inferred columns are read after apply.
+//   - An unknown or null planned value takes the state value.
+//   - Configured columns are never touched.
+//   - New mappings stay unknown so the inferred columns are read after apply.
+//   - Resynced mappings with reinfer_columns_on_resync stay unknown too, as
+//     their columns are inferred again.
 func repairMongoDBInferredColumnsPlan(ctx context.Context, plan *models.ClickPipeResourceModel, state models.ClickPipeResourceModel) (bool, diag.Diagnostics) {
 	var diagnostics diag.Diagnostics
 	if plan.Source.IsNull() || plan.Source.IsUnknown() || state.Source.IsNull() || state.Source.IsUnknown() {
@@ -178,16 +194,19 @@ func repairMongoDBInferredColumnsPlan(ctx context.Context, plan *models.ClickPip
 
 	type mappingKey struct{ database, collection string }
 	stateColumns := map[mappingKey]types.List{}
+	stateResyncVersions := map[mappingKey]types.Int64{}
 	var stateMappings []models.ClickPipeMongoDBTableMappingModel
 	diagnostics.Append(stateMongo.TableMappings.ElementsAs(ctx, &stateMappings, false)...)
 	for _, mapping := range stateMappings {
+		key := mappingKey{mapping.SourceDatabaseName.ValueString(), mapping.SourceCollection.ValueString()}
+		stateResyncVersions[key] = mapping.ResyncVersion
 		if mapping.StructuredIngestion.IsNull() {
 			continue
 		}
 		var si models.ClickPipeMongoDBStructuredIngestionModel
 		diagnostics.Append(mapping.StructuredIngestion.As(ctx, &si, basetypes.ObjectAsOptions{})...)
 		if !si.Columns.IsNull() && !si.Columns.IsUnknown() {
-			stateColumns[mappingKey{mapping.SourceDatabaseName.ValueString(), mapping.SourceCollection.ValueString()}] = si.Columns
+			stateColumns[key] = si.Columns
 		}
 	}
 
@@ -209,8 +228,9 @@ func repairMongoDBInferredColumnsPlan(ctx context.Context, plan *models.ClickPip
 		if !si.Columns.IsNull() && !si.Columns.IsUnknown() {
 			continue
 		}
-		columns, ok := stateColumns[mappingKey{mapping.SourceDatabaseName.ValueString(), mapping.SourceCollection.ValueString()}]
-		if !ok {
+		key := mappingKey{mapping.SourceDatabaseName.ValueString(), mapping.SourceCollection.ValueString()}
+		columns, ok := stateColumns[key]
+		if !ok || (mayReinferColumns(si.ReinferColumnsOnResync) && resyncVersionChanged(stateResyncVersions[key], mapping.ResyncVersion)) {
 			continue
 		}
 		si.Columns = columns

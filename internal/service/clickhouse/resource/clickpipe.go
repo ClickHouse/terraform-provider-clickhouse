@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/boolvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/float64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
@@ -1267,7 +1268,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 											Optional:    true,
 										},
 										"partition_by_expr": schema.StringAttribute{
-											Description: "ClickHouse PARTITION BY expression applied to the destination table when ClickPipes creates it. Changing it on an existing table mapping requires changing `resync_version` in the same apply.",
+											Description: "ClickHouse PARTITION BY expression applied to the destination table when ClickPipes creates it.",
 											Optional:    true,
 											Validators: []validator.String{
 												// The API stores a blank expression as unset, which reads
@@ -1587,7 +1588,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 											Optional:    true,
 										},
 										"partition_by_expr": schema.StringAttribute{
-											Description: "ClickHouse PARTITION BY expression applied to the destination table when ClickPipes creates it. Changing it on an existing table mapping requires changing `resync_version` in the same apply.",
+											Description: "ClickHouse PARTITION BY expression applied to the destination table when ClickPipes creates it.",
 											Optional:    true,
 											Validators: []validator.String{
 												// The API stores a blank expression as unset, which reads
@@ -2062,7 +2063,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 										"structured_ingestion": schema.SingleNestedAttribute{
 											MarkdownDescription: "Replicate the collection into typed ClickHouse columns instead of a single JSON document column. Setting this block enables structured ingestion. " +
 												"When `columns` is omitted, they are inferred from a sample of the collection documents, however inference is not available for pipes using `ssh_key_resource_id`. " +
-												"Changing it on an existing table mapping requires changing `resync_version` in the same apply, with `columns` set as they are not inferred on resync.",
+												"A resync, of the collection with `resync_version` or of the whole pipe, keeps the current columns, unless `reinfer_columns_on_resync` is `true` when `resync_version` changes.",
 											Optional: true,
 											Attributes: map[string]schema.Attribute{
 												"drop_unexpected_values": schema.BoolAttribute{
@@ -2070,7 +2071,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 													Optional:            true,
 												},
 												"columns": schema.ListNestedAttribute{
-													MarkdownDescription: "Typed columns of the collection to replicate, taken as provided. When omitted, the columns are inferred from a sample of the collection documents when the mapping is created (not available with `ssh_key_resource_id`), and the state holds the inferred columns that are not excluded. " +
+													MarkdownDescription: "Typed columns of the collection to replicate, taken as provided. When omitted, the columns are inferred from a sample of the collection documents when the mapping is created, and again when its `resync_version` changes with `reinfer_columns_on_resync` set (not available with `ssh_key_resource_id`), and the state holds the inferred columns that are not excluded. " +
 														"Must not include any of `excluded_columns`. " +
 														"The `_id` document key is always replicated as `String` and must not be listed.",
 													Optional: true,
@@ -2089,6 +2090,14 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 																Required:    true,
 															},
 														},
+													},
+												},
+												"reinfer_columns_on_resync": schema.BoolAttribute{
+													MarkdownDescription: "When `true`, changing `resync_version` infers the columns of the collection again from a sample of the collection documents, instead of keeping the current ones. " +
+														"It has no effect otherwise: the columns of an added collection are inferred whenever `columns` is omitted, and a resync of the whole pipe always keeps them. Cannot be set together with `columns`.",
+													Optional: true,
+													Validators: []validator.Bool{
+														boolvalidator.ConflictsWith(path.MatchRelative().AtParent().AtName("columns")),
 													},
 												},
 												"excluded_columns": schema.SetAttribute{

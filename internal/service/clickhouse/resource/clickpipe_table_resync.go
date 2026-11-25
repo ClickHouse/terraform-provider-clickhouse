@@ -21,7 +21,12 @@ import (
 // table from a fresh snapshot, so it requires changing the version too:
 // otherwise the plan fails, as it did before resync existed.
 
-const clickPipeResyncVersion = "resync_version"
+const (
+	clickPipeResyncVersion = "resync_version"
+	// clickPipeReinferColumnsOnResync is the structured_ingestion attribute
+	// that infers the columns of a resynced MongoDB collection again.
+	clickPipeReinferColumnsOnResync = "reinfer_columns_on_resync"
+)
 
 // clickPipeResyncVersionAttribute is the resync_version attribute of a CDC
 // table mapping. It is not sent to the API. The resync behavior is described
@@ -91,10 +96,25 @@ func mongoDBTableMappingChange(prior, planned models.ClickPipeMongoDBTableMappin
 		return "table_engine"
 	case prior.PersistDeletedDocuments.ValueBool() != planned.PersistDeletedDocuments.ValueBool():
 		return "persist_deleted_documents"
-	case !prior.StructuredIngestion.Equal(planned.StructuredIngestion):
+	case !sameStructuredIngestion(prior.StructuredIngestion, planned.StructuredIngestion):
 		return "structured_ingestion"
 	}
 	return ""
+}
+
+// sameStructuredIngestion ignores reinfer_columns_on_resync: it only applies
+// when the collection is resynced, so setting it alone changes nothing.
+func sameStructuredIngestion(a, b types.Object) bool {
+	if a.IsNull() || a.IsUnknown() || b.IsNull() || b.IsUnknown() {
+		return a.Equal(b)
+	}
+	attrsA, attrsB := a.Attributes(), b.Attributes()
+	for name, value := range attrsA {
+		if name != clickPipeReinferColumnsOnResync && !value.Equal(attrsB[name]) {
+			return false
+		}
+	}
+	return true
 }
 
 // validateTableMappingChange reports a planned change to an existing table
@@ -122,10 +142,11 @@ func validateTableMappingChange(diagnostics *diag.Diagnostics, table, changed st
 }
 
 // validateMongoDBResyncColumns rejects a resync that turns on structured
-// ingestion without columns: the API only infers columns for added
-// collections. Existing structured ingestion mappings keep their inferred
-// columns in the plan (see repairMongoDBInferredColumnsPlan), so this only
-// fires when the columns are not known yet.
+// ingestion without columns or reinfer_columns_on_resync: the API only infers
+// the columns of a resynced collection when asked to. Existing structured
+// ingestion mappings keep their inferred columns in the plan unless
+// reinfer_columns_on_resync is set (see repairMongoDBInferredColumnsPlan), so
+// this only fires when the columns are not known yet.
 func validateMongoDBResyncColumns(ctx context.Context, diagnostics *diag.Diagnostics, table string, planned models.ClickPipeMongoDBTableMappingModel) {
 	if planned.StructuredIngestion.IsNull() || planned.StructuredIngestion.IsUnknown() {
 		return
@@ -135,10 +156,10 @@ func validateMongoDBResyncColumns(ctx context.Context, diagnostics *diag.Diagnos
 	if diagnostics.HasError() {
 		return
 	}
-	if si.Columns.IsNull() || si.Columns.IsUnknown() {
+	if (si.Columns.IsNull() || si.Columns.IsUnknown()) && !mayReinferColumns(si.ReinferColumnsOnResync) {
 		diagnostics.AddError(
 			"Invalid table_mappings configuration",
-			fmt.Sprintf("structured_ingestion.columns must be set to resync collection '%s' with structured ingestion: columns are only inferred when a collection is added to the pipe.", table),
+			fmt.Sprintf("Set structured_ingestion.columns, or set structured_ingestion.reinfer_columns_on_resync to true, to resync collection '%s' with structured ingestion: the columns of a resynced collection are only inferred with reinfer_columns_on_resync.", table),
 		)
 	}
 }
@@ -234,6 +255,17 @@ func mongoDBTableMappingDeltas(ctx context.Context, diagnostics *diag.Diagnostic
 	toAPI := func(m models.ClickPipeMongoDBTableMappingModel) api.ClickPipeMongoDBTableMapping {
 		return convertMongoDBTableMappingModelToAPI(ctx, diagnostics, m)
 	}
+	// reinferColumns is only accepted on resync, and not together with columns,
+	// which the plan may still hold from state.
+	toResyncAPI := func(m models.ClickPipeMongoDBTableMappingModel) api.ClickPipeMongoDBTableMapping {
+		mapping := toAPI(m)
+		reinfer, _ := m.StructuredIngestion.Attributes()[clickPipeReinferColumnsOnResync].(types.Bool)
+		if mapping.StructuredIngestion != nil && reinfer.ValueBool() {
+			mapping.StructuredIngestion.ReinferColumns = reinfer.ValueBoolPointer()
+			mapping.StructuredIngestion.Columns = nil
+		}
+		return mapping
+	}
 	// A removal only identifies the collection: the API rejects mongoConfig and structuredIngestion here.
 	toRemovalAPI := func(m models.ClickPipeMongoDBTableMappingModel) api.ClickPipeMongoDBTableMapping {
 		mapping := toAPI(m)
@@ -241,5 +273,5 @@ func mongoDBTableMappingDeltas(ctx context.Context, diagnostics *diag.Diagnostic
 		mapping.StructuredIngestion = nil
 		return mapping
 	}
-	return convertAll(add, toAPI), convertAll(remove, toRemovalAPI), convertAll(res, toAPI)
+	return convertAll(add, toAPI), convertAll(remove, toRemovalAPI), convertAll(res, toResyncAPI)
 }

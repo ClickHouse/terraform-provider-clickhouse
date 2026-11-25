@@ -8,7 +8,7 @@ description: |-
   Known limitations:
   ClickPipe does not support table updates for managed tables. If you need to update the table schema, you will have to do that externally.Changing the source type of an existing ClickPipe will force replacement (destroy and recreate).
   Table resync (Postgres, MySQL and MongoDB CDC pipes):
-  Changing a table mapping's resync_version, e.g. incrementing it, resyncs that table: it is copied again from the source with the mapping's current settings, then replaces its current destination table. Replication of the other tables is paused until the resync completes; track its progress in the ClickHouse Cloud console.Changing any other attribute of an existing mapping, except target_table, requires changing its resync_version in the same apply. target_table cannot be changed: remove the mapping and add a new one.Removing resync_version, or setting it on a new mapping, resyncs nothing.
+  Changing a table mapping's resync_version, e.g. incrementing it, resyncs that table: it is copied again from the source with the mapping's current settings, then replaces its current destination table. Replication of the other tables is paused until the resync completes; track its progress in the ClickHouse Cloud console.Changing any other attribute of an existing mapping, except target_table, requires changing its resync_version in the same apply. target_table cannot be changed: remove the mapping and add a new one.Removing resync_version, or setting it on a new mapping, resyncs nothing.MongoDB structured ingestion: a resynced collection keeps its current columns, unless structured_ingestion.reinfer_columns_on_resync is true, which infers them again. reinfer_columns_on_resync can be changed without a resync. A resync of the whole pipe always keeps the current columns.
 ---
 
 # clickhouse_clickpipe (Resource)
@@ -27,6 +27,7 @@ Table resync (Postgres, MySQL and MongoDB CDC pipes):
 - Changing a table mapping's `resync_version`, e.g. incrementing it, resyncs that table: it is copied again from the source with the mapping's current settings, then replaces its current destination table. Replication of the other tables is paused until the resync completes; track its progress in the ClickHouse Cloud console.
 - Changing any other attribute of an existing mapping, except `target_table`, requires changing its `resync_version` in the same apply. `target_table` cannot be changed: remove the mapping and add a new one.
 - Removing `resync_version`, or setting it on a new mapping, resyncs nothing.
+- MongoDB structured ingestion: a resynced collection keeps its current columns, unless `structured_ingestion.reinfer_columns_on_resync` is `true`, which infers them again. `reinfer_columns_on_resync` can be changed without a resync. A resync of the whole pipe always keeps the current columns.
 
 ## Example Usage
 
@@ -435,7 +436,7 @@ Optional:
 
 - `persist_deleted_documents` (Boolean) Persist the full document as it was right before it was deleted, instead of just its `_id`, when MongoDB delete events are ingested. Requires `changeStreamPreAndPostImages` to be enabled on the source collection. Has no effect on `snapshot` only pipes.
 - `resync_version` (Number) Change this value to resync the collection. See *Table resync* above.
-- `structured_ingestion` (Attributes) Replicate the collection into typed ClickHouse columns instead of a single JSON document column. Setting this block enables structured ingestion. When `columns` is omitted, they are inferred from a sample of the collection documents, however inference is not available for pipes using `ssh_key_resource_id`. Changing it on an existing table mapping requires changing `resync_version` in the same apply, with `columns` set as they are not inferred on resync. (see [below for nested schema](#nestedatt--source--mongodb--table_mappings--structured_ingestion))
+- `structured_ingestion` (Attributes) Replicate the collection into typed ClickHouse columns instead of a single JSON document column. Setting this block enables structured ingestion. When `columns` is omitted, they are inferred from a sample of the collection documents, however inference is not available for pipes using `ssh_key_resource_id`. A resync, of the collection with `resync_version` or of the whole pipe, keeps the current columns, unless `reinfer_columns_on_resync` is `true` when `resync_version` changes. (see [below for nested schema](#nestedatt--source--mongodb--table_mappings--structured_ingestion))
 - `table_engine` (String) Table engine to use for the target table. (`MergeTree`, `ReplacingMergeTree`, `Null`)
 
 <a id="nestedatt--source--mongodb--table_mappings--structured_ingestion"></a>
@@ -443,10 +444,11 @@ Optional:
 
 Optional:
 
-- `columns` (Attributes List) Typed columns of the collection to replicate, taken as provided. When omitted, the columns are inferred from a sample of the collection documents when the mapping is created (not available with `ssh_key_resource_id`), and the state holds the inferred columns that are not excluded. Must not include any of `excluded_columns`. The `_id` document key is always replicated as `String` and must not be listed. (see [below for nested schema](#nestedatt--source--mongodb--table_mappings--structured_ingestion--columns))
+- `columns` (Attributes List) Typed columns of the collection to replicate, taken as provided. When omitted, the columns are inferred from a sample of the collection documents when the mapping is created, and again when its `resync_version` changes with `reinfer_columns_on_resync` set (not available with `ssh_key_resource_id`), and the state holds the inferred columns that are not excluded. Must not include any of `excluded_columns`. The `_id` document key is always replicated as `String` and must not be listed. (see [below for nested schema](#nestedatt--source--mongodb--table_mappings--structured_ingestion--columns))
 - `drop_unexpected_values` (Boolean) When `true`, values that don't fit their inferred schema column are reported with only the field name and reason, without the value. Defaults to `false`.
 - `excluded_columns` (Set of String) Names of inferred columns to leave out of replication. Names that match no column are ignored. Must not overlap with `columns`. `_id` cannot be excluded.
 - `partition_by_expr` (String) ClickHouse `PARTITION BY` expression applied to the destination table when ClickPipes creates it, e.g. `toYYYYMM(created_at)`.
+- `reinfer_columns_on_resync` (Boolean) When `true`, changing `resync_version` infers the columns of the collection again from a sample of the collection documents, instead of keeping the current ones. It has no effect otherwise: the columns of an added collection are inferred whenever `columns` is omitted, and a resync of the whole pipe always keeps them. Cannot be set together with `columns`.
 - `sorting_keys` (List of String) Ordered list of column names to use as the sorting (`ORDER BY`) key. Each must be `_id` or one of the collection columns, and not excluded. Defaults to the `_id` document key.
 
 <a id="nestedatt--source--mongodb--table_mappings--structured_ingestion--columns"></a>
@@ -530,7 +532,7 @@ Required:
 Optional:
 
 - `excluded_columns` (Set of String) Columns to exclude from replication.
-- `partition_by_expr` (String) ClickHouse PARTITION BY expression applied to the destination table when ClickPipes creates it. Changing it on an existing table mapping requires changing `resync_version` in the same apply.
+- `partition_by_expr` (String) ClickHouse PARTITION BY expression applied to the destination table when ClickPipes creates it.
 - `partition_key` (String) Custom partitioning column used for parallel snapshotting. Must be an indexed column of integer, date, datetime, or timestamp type.
 - `resync_version` (Number) Change this value to resync the table. See *Table resync* above.
 - `sorting_keys` (List of String) Ordered list of columns to use as sorting key for the target table. Required when use_custom_sorting_key is true.
@@ -644,7 +646,7 @@ Required:
 Optional:
 
 - `excluded_columns` (Set of String) Columns to exclude from replication.
-- `partition_by_expr` (String) ClickHouse PARTITION BY expression applied to the destination table when ClickPipes creates it. Changing it on an existing table mapping requires changing `resync_version` in the same apply.
+- `partition_by_expr` (String) ClickHouse PARTITION BY expression applied to the destination table when ClickPipes creates it.
 - `partition_key` (String) Custom partitioning column used for parallel snapshotting. Only beneficial for PostgreSQL 13 (no benefit for PG14+, which supports indexed ctid scans). Must be an indexed column of type: `smallint`, `integer`, `bigint`, `timestamp without time zone`, or `timestamp with time zone`. Unrelated to ClickHouse partitioning.
 - `resync_version` (Number) Change this value to resync the table. See *Table resync* above.
 - `sorting_keys` (List of String) Ordered list of columns to use as sorting key for the target table. Required when use_custom_sorting_key is true.
