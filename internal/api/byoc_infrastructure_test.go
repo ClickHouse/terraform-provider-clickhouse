@@ -291,6 +291,38 @@ func TestCreateByocInfrastructureEnrollmentToken(t *testing.T) {
 	}
 }
 
+func TestCreateByocInfrastructure_ConflictIsClassifiable(t *testing.T) {
+	client, _ := newTestClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusConflict)
+		_, _ = w.Write([]byte(`{"error":"CONFLICT: a BYOC infrastructure is already registered"}`))
+	})
+
+	_, err := client.CreateByocInfrastructure(context.Background(), ByocInfrastructureCreateRequest{
+		RegionId:  "us-east-2",
+		AccountId: "123456789012",
+	})
+	if !IsConflict(err) {
+		t.Fatalf("err = %v; want IsConflict so the resource can suggest an import", err)
+	}
+}
+
+func TestCreateByocInfrastructureEnrollmentToken_DoesNotRetry(t *testing.T) {
+	var requests atomic.Int32
+	client, _ := newTestClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		requests.Add(1)
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"error":"transient"}`))
+	})
+
+	_, err := client.CreateByocInfrastructureEnrollmentToken(context.Background(), "byoc-1", ByocEnrollmentTokenRequest{})
+	if err == nil {
+		t.Fatal("CreateByocInfrastructureEnrollmentToken must fail on a 5xx response")
+	}
+	if got := requests.Load(); got != 1 {
+		t.Errorf("requests = %d; a mint whose response was lost must never be replayed", got)
+	}
+}
+
 func TestCreateByocInfrastructureEnrollmentToken_ConflictUntilTrustAdmitted(t *testing.T) {
 	client, _ := newTestClient(t, func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusConflict)

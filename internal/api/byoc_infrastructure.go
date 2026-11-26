@@ -391,7 +391,9 @@ func (c *ClientImpl) CreateByocInfrastructureEnrollmentToken(ctx context.Context
 		return nil, fmt.Errorf("failed to build create BYOC enrollment token request: %w", err)
 	}
 
-	body, err := c.doRequest(ctx, req)
+	// No retries: a replayed mint whose response was lost would issue a
+	// second live token, and its 409 would read as trust not yet admitted.
+	body, err := c.doRequestWithStatus(ctx, req, false)
 	if err != nil {
 		return nil, err
 	}
