@@ -74,6 +74,7 @@ resource "clickhouse_service" "byoc" {
 
 Read-Only:
 
+- `access_model` (String) Access model of the infrastructure: 'standard' or 'restricted'. The state of a restricted-access infrastructure listed here is not read live; use the clickhouse_byoc_infrastructure data source for its current state and connector liveness.
 - `account_id` (String) Customer cloud account the infrastructure is deployed into: AWS account ID, GCP project ID or Azure subscription ID.
 - `cloud_provider` (String) Cloud provider the infrastructure runs in ('aws', 'gcp' or 'azure').
 - `display_name` (String) Human readable name of the infrastructure.

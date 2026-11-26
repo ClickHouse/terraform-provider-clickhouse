@@ -20,6 +20,18 @@ description: |-
   ClickHouse Cloud, and for BYO-VPC topologies the VPC and subnets) must exist
   before creating this resource. See the BYOC onboarding
   documentation https://clickhouse.com/docs/cloud/reference/byoc for details.
+  With access_model = "restricted", the infrastructure registers an EKS
+  cluster, IAM roles and S3 buckets you provision yourself (restricted_facts)
+  instead of having ClickHouse Cloud provision them through an onboarding role.
+  ClickHouse Cloud reaches the cluster only through a connector you install.
+  Creating a restricted-access infrastructure returns as soon as it is
+  registered, in the infra-awaiting-connector state. Mint a token with
+  clickhouse_byoc_enrollment_token, install the connector with it, and wait
+  with clickhouse_byoc_infrastructure_ready before deploying services. The API
+  accepts no changes to a restricted-access infrastructure after registration
+  other than display_name, so the networking, connectivity, tag and
+  customer-authorized access attributes are rejected, and changing
+  restricted_facts requires replacement. Restricted access is AWS only.
   ~> Note: This resource is in beta. Its behavior may change in future provider versions.
   Known limitations:
   Write-only creation parameters (external_id, tenant_id, service_principal_client_id, availability_zone_suffixes, public_subnet_ids) are not returned by the API. After terraform import they are unset in state; add them to the configuration to match what the infrastructure was created with — they are adopted in place without replacement. Changing a previously recorded value still requires replacement. The BYO-VPC attributes (vpc_id, private_subnet_ids, gcp_pod_cidr_range_names, gcp_shared_vpc_host_project_id) are returned by the API and restored during import; configuring a different value plans a replacement.
@@ -47,6 +59,19 @@ The cloud-side onboarding (IAM role or service principal trusted by
 ClickHouse Cloud, and for BYO-VPC topologies the VPC and subnets) must exist
 before creating this resource. See the [BYOC onboarding
 documentation](https://clickhouse.com/docs/cloud/reference/byoc) for details.
+
+With `access_model = "restricted"`, the infrastructure registers an EKS
+cluster, IAM roles and S3 buckets you provision yourself (`restricted_facts`)
+instead of having ClickHouse Cloud provision them through an onboarding role.
+ClickHouse Cloud reaches the cluster only through a connector you install.
+Creating a restricted-access infrastructure returns as soon as it is
+registered, in the `infra-awaiting-connector` state. Mint a token with
+`clickhouse_byoc_enrollment_token`, install the connector with it, and wait
+with `clickhouse_byoc_infrastructure_ready` before deploying services. The API
+accepts no changes to a restricted-access infrastructure after registration
+other than `display_name`, so the networking, connectivity, tag and
+customer-authorized access attributes are rejected, and changing
+`restricted_facts` requires replacement. Restricted access is AWS only.
 
 ~> **Note:** This resource is in beta. Its behavior may change in future provider versions.
 
@@ -114,6 +139,7 @@ resource "clickhouse_service" "byoc" {
 
 ### Optional
 
+- `access_model` (String) Access model of the infrastructure: 'standard' (ClickHouse provisions and operates the data plane through the onboarding role) or 'restricted' (the customer provisions the Kubernetes cluster, IAM and storage; ClickHouse operates it only through the connector the customer installs). Defaults to 'standard'. Changing it requires replacement.
 - `availability_zone_suffixes` (List of String) Availability zone suffixes (e.g. ['a', 'b', 'c']) for the ClickHouse-managed VPC. Write-only; the resolved zones are returned by the data source as 'vpc_availability_zone_list'.
 - `customer_authorized_access` (Attributes) Controls when ClickHouse personnel may access the infrastructure. Omit the block to leave the setting unmanaged (the ClickHouse Cloud default allows access). Removing the block leaves the last applied setting in place. (see [below for nested schema](#nestedatt--customer_authorized_access))
 - `display_name` (String) Human readable name of the infrastructure. Defaults to a server-generated name.
@@ -126,6 +152,7 @@ resource "clickhouse_service" "byoc" {
 - `gcp_shared_vpc_host_project_id` (String) GCP BYO-VPC: host project ID when the customer-managed VPC is a shared VPC.
 - `private_subnet_ids` (List of String) BYO-VPC: private subnet IDs to deploy into.
 - `public_subnet_ids` (List of String) BYO-VPC: public subnet IDs for internet-facing load balancers. Write-only; not returned by the API.
+- `restricted_facts` (Attributes) Restricted access only (AWS only), and required then: registration of the customer-provisioned cluster. The API does not accept changes after registration, so changing any attribute requires replacement. (see [below for nested schema](#nestedatt--restricted_facts))
 - `service_principal_client_id` (String) Azure only: client ID of the onboarding service principal. Write-only; not returned by the API.
 - `skip_preflight_validation` (Boolean) Skip the preflight cloud permission validation before creating. Defaults to false.
 - `tags` (Map of String) Tags to apply to the cloud resources of the infrastructure (max 50). Updates replace the full tag set.
@@ -151,6 +178,31 @@ Optional:
 
 - `duration_seconds` (Number) Length of the access window in seconds, counted from 'start_timestamp' (max 172800, 48 hours). Defaults to 0, which allows access without a deadline while 'enabled' is true.
 - `start_timestamp` (String) Start of the access window as an RFC3339 timestamp (e.g. '2026-06-01T12:00:00Z'). Required when 'duration_seconds' is greater than 0.
+
+
+<a id="nestedatt--restricted_facts"></a>
+### Nested Schema for `restricted_facts`
+
+Required:
+
+- `backup_bucket` (String) S3 bucket services store backups in.
+- `cluster_name` (String) Name of the customer-provisioned EKS cluster.
+- `data_bucket` (String) S3 bucket services store data in.
+- `image_mode` (String) Where the cluster pulls platform images from: 'direct' (the ClickHouse registry) or 'bundle' (a customer registry mirrored from the ClickHouse image bundle).
+- `storage_role_arn` (String) IAM role ARN, in 'account_id', services assume to reach the buckets.
+
+Optional:
+
+- `availability_zones` (List of String) At least three distinct availability zones of the region (e.g. ['us-east-1a', 'us-east-1b', 'us-east-1c']). The API defaults to the region default. Omitting it keeps the registered value (the API default on create).
+- `enable_autoscaler` (Boolean) Install the ClickHouse autoscaler. The API defaults to false. Omitting it keeps the registered value (the API default on create).
+- `enable_monitoring` (Boolean) Install the monitoring components. The API defaults to true. Omitting it keeps the registered value (the API default on create).
+- `enable_snapshot_controller` (Boolean) Install the volume snapshot controller. The API defaults to true. Omitting it keeps the registered value (the API default on create).
+- `executor_role_arn` (String) Direct image mode only, and required then: IAM role ARN of the connector executor, in 'account_id'. Omitting it keeps the registered value (the API default on create).
+- `image_registry` (String) Bundle image mode only, and required then: OCI repository root holding the platform images. Omitting it keeps the registered value (the API default on create).
+- `namespace_prefix` (String) Prefix of the namespace each service runs in; must match the connector executor configuration. The API defaults to 'ns-'. Omitting it keeps the registered value (the API default on create).
+- `node_role_arns` (List of String) Direct image mode only, and required then: IAM role ARNs of the cluster nodes, in 'account_id'. Omitting it keeps the registered value (the API default on create).
+- `platform_node_group` (String) Node group the platform components run on. The API defaults to 'system'. Omitting it keeps the registered value (the API default on create).
+- `scraper_endpoint` (String) Remote-write URL of the connector scraper. Required unless 'enable_monitoring' is false. Omitting it keeps the registered value (the API default on create).
 
 ## Import
 

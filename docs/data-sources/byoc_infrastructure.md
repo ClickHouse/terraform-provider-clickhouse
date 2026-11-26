@@ -70,13 +70,15 @@ output "byoc_state" {
 
 ### Read-Only
 
+- `access_model` (String) Access model of the infrastructure: 'standard' (ClickHouse provisions and operates the data plane through the onboarding role) or 'restricted' (the customer provisions the cluster; ClickHouse operates it only through the connector the customer installs).
 - `account_id` (String) Customer cloud account the infrastructure is deployed into: AWS account ID, GCP project ID or Azure subscription ID.
 - `byo_vpc_id` (String) ID of the customer-managed VPC. Null unless 'is_byo_vpc' is true.
 - `byo_vpc_pod_cidr_range_names` (List of String) GCP only: names of the secondary ranges used for pod IPs in the customer-managed VPC.
 - `byo_vpc_private_subnet_ids` (List of String) Private subnet IDs of the customer-managed VPC. Empty unless 'is_byo_vpc' is true.
 - `byo_vpc_shared_vpc_host_project_id` (String) GCP only: host project of the shared VPC, when the customer-managed VPC is a shared VPC.
 - `cloud_provider` (String) Cloud provider the infrastructure runs in ('aws', 'gcp' or 'azure').
-- `customer_authorized_access` (Attributes) Setting that controls when ClickHouse personnel may access the infrastructure, with the current verdict. Null when the feature is not enabled for the organization. (see [below for nested schema](#nestedatt--customer_authorized_access))
+- `connector` (Attributes) Liveness of the connector of a restricted-access infrastructure, as reported when the data source was read. Null for standard infrastructures. (see [below for nested schema](#nestedatt--connector))
+- `customer_authorized_access` (Attributes) Setting that controls when ClickHouse personnel may access the infrastructure, with the current verdict. Null when the feature is not enabled for the organization, and for restricted-access infrastructures. (see [below for nested schema](#nestedatt--customer_authorized_access))
 - `display_name` (String) Human readable name of the infrastructure.
 - `enable_private_link` (Boolean) Whether private link connectivity (AWS PrivateLink, GCP Private Service Connect or Azure Private Link) is enabled.
 - `enable_private_load_balancer` (Boolean) Whether the internal (VPC-private) load balancer is enabled.
@@ -85,10 +87,33 @@ output "byoc_state" {
 - `is_byo_vpc` (Boolean) Whether the infrastructure runs inside a customer-managed VPC instead of a ClickHouse-managed one.
 - `private_endpoint_config` (Attributes) Private link endpoint service of the infrastructure. Null unless private link is enabled. (see [below for nested schema](#nestedatt--private_endpoint_config))
 - `region_id` (String) Region the infrastructure is deployed in (e.g. 'us-east-1').
+- `restricted_facts` (Attributes) Registration of the customer-provisioned cluster of a restricted-access infrastructure. Null for standard infrastructures. Optional values left to the API default are null. (see [below for nested schema](#nestedatt--restricted_facts))
 - `state` (String) Provisioning state of the infrastructure (e.g. 'infra-provisioning', 'infra-ready', 'infra-terminating').
-- `tags` (Map of String) Tags applied to the cloud resources of the infrastructure.
+- `tags` (Map of String) Tags applied to the cloud resources of the infrastructure. Empty for restricted-access infrastructures, whose cloud resources ClickHouse does not manage.
 - `vpc_availability_zone_list` (List of String) Availability zones the infrastructure VPC spans.
 - `vpc_cidr_range` (String) CIDR range of the infrastructure VPC. Null for BYO-VPC infrastructures.
+
+<a id="nestedatt--connector"></a>
+### Nested Schema for `connector`
+
+Read-Only:
+
+- `components` (Attributes List) Components the connector reports on. (see [below for nested schema](#nestedatt--connector--components))
+- `last_heartbeat_at` (String) Last heartbeat of the connector (ISO-8601). Null until the connector first reports.
+- `platform_detail` (String) What the customer needs to do when the platform layer waits on them.
+- `platform_state` (String) State of the platform layer the connector installs.
+
+<a id="nestedatt--connector--components"></a>
+### Nested Schema for `connector.components`
+
+Read-Only:
+
+- `last_heartbeat_at` (String) Last heartbeat of the component (ISO-8601).
+- `name` (String) Connector component, e.g. 'scraper', 'executor' or 'troubleshooter'.
+- `state` (String) State the component last reported.
+- `version` (String) Version the component last reported.
+
+
 
 <a id="nestedatt--customer_authorized_access"></a>
 ### Nested Schema for `customer_authorized_access`
@@ -109,3 +134,25 @@ Read-Only:
 
 - `endpoint_name` (String) Name of the endpoint service: AWS VPC endpoint service name, GCP Private Service Connect service attachment or Azure Private Link service alias.
 - `private_dns_hostname` (String) Private DNS hostname of the VPC the infrastructure runs in.
+
+
+<a id="nestedatt--restricted_facts"></a>
+### Nested Schema for `restricted_facts`
+
+Read-Only:
+
+- `availability_zones` (List of String) Availability zones of the region the infrastructure uses.
+- `backup_bucket` (String) S3 bucket services store backups in.
+- `cluster_name` (String) Name of the EKS cluster the connector runs in.
+- `data_bucket` (String) S3 bucket services store data in.
+- `enable_autoscaler` (Boolean) Whether the ClickHouse autoscaler is installed.
+- `enable_monitoring` (Boolean) Whether the monitoring components are installed.
+- `enable_snapshot_controller` (Boolean) Whether the volume snapshot controller is installed.
+- `executor_role_arn` (String) Direct image mode only: IAM role ARN of the connector executor.
+- `image_mode` (String) How the connector pulls platform images: 'direct' from the ClickHouse registry, or 'bundle' from 'image_registry'.
+- `image_registry` (String) Bundle image mode only: OCI repository root holding the platform images.
+- `namespace_prefix` (String) Prefix of the namespace each service runs in.
+- `node_role_arns` (List of String) Direct image mode only: IAM role ARNs of the cluster nodes.
+- `platform_node_group` (String) Node group the platform components run on.
+- `scraper_endpoint` (String) Remote-write URL of the connector scraper.
+- `storage_role_arn` (String) IAM role ARN services assume to reach the buckets.
