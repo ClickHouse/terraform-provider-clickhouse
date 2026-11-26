@@ -795,7 +795,7 @@ func (r *ByocInfrastructureResource) Update(ctx context.Context, req resource.Up
 	// modifiers leave null-state attributes unknown — so resolve them from
 	// prior state before writing.
 	if !r.syncByocResourceState(ctx, state.ID.ValueString(), &plan, &resp.Diagnostics) {
-		resolveUnknownComputedFromState(&plan, &state)
+		resp.Diagnostics.Append(resolveUnknownComputedFromState(ctx, &plan, &state)...)
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
@@ -804,7 +804,7 @@ func (r *ByocInfrastructureResource) Update(ctx context.Context, req resource.Up
 // unknown from prior state: writing an unknown value to state is a framework
 // error, and null-state attributes have nothing for UseStateForUnknown to
 // restore.
-func resolveUnknownComputedFromState(plan, state *models.ByocInfrastructureResourceModel) {
+func resolveUnknownComputedFromState(ctx context.Context, plan, state *models.ByocInfrastructureResourceModel) diag.Diagnostics {
 	if plan.ID.IsUnknown() {
 		plan.ID = state.ID
 	}
@@ -856,9 +856,9 @@ func resolveUnknownComputedFromState(plan, state *models.ByocInfrastructureResou
 	if plan.AccessModel.IsUnknown() {
 		plan.AccessModel = state.AccessModel
 	}
-	if plan.RestrictedFacts.IsUnknown() {
-		plan.RestrictedFacts = state.RestrictedFacts
-	}
+	facts, diags := models.ByocRestoreUnknownRestrictedFacts(ctx, plan.RestrictedFacts, state.RestrictedFacts)
+	plan.RestrictedFacts = facts
+	return diags
 }
 
 func (r *ByocInfrastructureResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {

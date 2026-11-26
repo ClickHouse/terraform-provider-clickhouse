@@ -144,6 +144,34 @@ func ByocResolveUnknownRestrictedFacts(ctx context.Context, obj types.Object) (t
 	return types.ObjectValue(attrTypes, values)
 }
 
+// ByocRestoreUnknownRestrictedFacts restores attributes left unknown in a
+// planned facts object from the prior state, null included, so an update can
+// be persisted when the read-back that would resolve them failed.
+func ByocRestoreUnknownRestrictedFacts(ctx context.Context, planned, prior types.Object) (types.Object, diag.Diagnostics) {
+	if planned.IsUnknown() {
+		return prior, nil
+	}
+	if planned.IsNull() {
+		return planned, nil
+	}
+	attrTypes := ByocRestrictedFactsAttrTypes()
+	priorValues := map[string]attr.Value{}
+	if !prior.IsNull() && !prior.IsUnknown() {
+		priorValues = prior.Attributes()
+	}
+	values := map[string]attr.Value{}
+	for name, value := range planned.Attributes() {
+		if value.IsUnknown() {
+			value = nullValueOf(attrTypes[name])
+			if priorValue, ok := priorValues[name]; ok && !priorValue.IsUnknown() {
+				value = priorValue
+			}
+		}
+		values[name] = value
+	}
+	return types.ObjectValue(attrTypes, values)
+}
+
 type ByocConnectorModel struct {
 	LastHeartbeatAt types.String `tfsdk:"last_heartbeat_at"`
 	PlatformState   types.String `tfsdk:"platform_state"`

@@ -468,3 +468,29 @@ func TestByocResolveUnknownRestrictedFacts(t *testing.T) {
 		t.Errorf("cluster_name = %v; known values must be kept", facts.ClusterName)
 	}
 }
+
+func TestResolveUnknownComputedFromStateRestoresEachFact(t *testing.T) {
+	ctx := context.Background()
+	state := byocRestrictedModel(t)
+	state.RestrictedFacts = byocRestrictedFactsObject(t, func(f *models.ByocRestrictedFactsModel) {
+		f.PlatformNodeGroup = types.StringValue("system")
+		f.EnableAutoscaler = types.BoolValue(false)
+	})
+	plan := state
+	plan.DisplayName = types.StringValue("renamed")
+	plan.RestrictedFacts = byocRestrictedFactsObject(t, func(f *models.ByocRestrictedFactsModel) {
+		f.PlatformNodeGroup = types.StringUnknown()
+		f.ImageRegistry = types.StringUnknown()
+		f.EnableAutoscaler = types.BoolUnknown()
+	})
+
+	if diags := resolveUnknownComputedFromState(ctx, &plan, &state); diags.HasError() {
+		t.Fatalf("resolve: %v", diags)
+	}
+	if !plan.RestrictedFacts.Equal(state.RestrictedFacts) {
+		t.Errorf("restricted_facts = %v; want each unknown fact restored from state, null included: %v", plan.RestrictedFacts, state.RestrictedFacts)
+	}
+	if plan.DisplayName.ValueString() != "renamed" {
+		t.Errorf("display_name = %v; planned values must be kept", plan.DisplayName)
+	}
+}
