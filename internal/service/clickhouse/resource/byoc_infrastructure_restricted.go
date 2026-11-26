@@ -141,23 +141,23 @@ func byocAccessModelSchema() schema.StringAttribute {
 
 func byocRestrictedFactsSchema() schema.SingleNestedAttribute {
 	return schema.SingleNestedAttribute{
-		Description: "Restricted access only, and required then: registration of the customer-provisioned cluster. The API does not accept changes after registration, so changing any attribute requires replacement.",
+		Description: "Restricted access only (AWS only), and required then: registration of the customer-provisioned cluster. The API does not accept changes after registration, so changing any attribute requires replacement.",
 		Optional:    true,
 		PlanModifiers: []planmodifier.Object{
 			byocRestrictedFactsPresenceRequiresReplace(),
 		},
 		Attributes: map[string]schema.Attribute{
 			"cluster_name":        byocRequiredFactString("Name of the customer-provisioned EKS cluster."),
-			"platform_node_group": byocOptionalFactString("Value of the 'clickhouseGroup' node label that selects the nodes for the ClickHouse platform components. The API defaults to 'system'."),
+			"platform_node_group": byocOptionalFactString("Node group the platform components run on. The API defaults to 'system'."),
 			"availability_zones": byocOptionalFactList(
-				"Availability zones (e.g. ['us-east-1a', 'us-east-1b', 'us-east-1c']) the cluster nodes run in; at least three.",
+				"At least three distinct availability zones of the region (e.g. ['us-east-1a', 'us-east-1b', 'us-east-1c']). The API defaults to the region default.",
 				listvalidator.SizeAtLeast(3),
 				listvalidator.UniqueValues(),
 			),
-			"namespace_prefix":  byocOptionalFactString("Prefix of the Kubernetes namespaces ClickHouse creates in the cluster."),
-			"executor_role_arn": byocOptionalFactString("Direct image mode only, and required then: IAM role ARN of the connector executor, trusted to pull platform images."),
+			"namespace_prefix":  byocOptionalFactString("Prefix of the namespace each service runs in; must match the connector executor configuration. The API defaults to 'ns-'."),
+			"executor_role_arn": byocOptionalFactString("Direct image mode only, and required then: IAM role ARN of the connector executor, in 'account_id'."),
 			"node_role_arns": byocOptionalFactList(
-				"Direct image mode only, and required then: IAM role ARNs of the cluster nodes, trusted to pull platform images.",
+				"Direct image mode only, and required then: IAM role ARNs of the cluster nodes, in 'account_id'.",
 				listvalidator.SizeAtLeast(1),
 				listvalidator.UniqueValues(),
 			),
@@ -171,14 +171,14 @@ func byocRestrictedFactsSchema() schema.SingleNestedAttribute {
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
-			"image_registry":             byocOptionalFactString("Bundle image mode only, and required then: the customer registry platform images are pulled from."),
-			"data_bucket":                byocRequiredFactString("S3 bucket for service data."),
-			"backup_bucket":              byocRequiredFactString("S3 bucket for service backups."),
-			"storage_role_arn":           byocRequiredFactString("IAM role ARN services assume to access the data and backup buckets."),
-			"scraper_endpoint":           byocOptionalFactString("Endpoint the connector scraper ships metrics to."),
-			"enable_monitoring":          byocOptionalFactBool("Install the monitoring stack in the cluster."),
-			"enable_snapshot_controller": byocOptionalFactBool("Install the volume snapshot controller in the cluster."),
-			"enable_autoscaler":          byocOptionalFactBool("Install the node autoscaler in the cluster."),
+			"image_registry":             byocOptionalFactString("Bundle image mode only, and required then: OCI repository root holding the platform images."),
+			"data_bucket":                byocRequiredFactString("S3 bucket services store data in."),
+			"backup_bucket":              byocRequiredFactString("S3 bucket services store backups in."),
+			"storage_role_arn":           byocRequiredFactString("IAM role ARN, in 'account_id', services assume to reach the buckets."),
+			"scraper_endpoint":           byocOptionalFactString("Remote-write URL of the connector scraper. Required unless 'enable_monitoring' is false."),
+			"enable_monitoring":          byocOptionalFactBool("Install the monitoring components. The API defaults to true."),
+			"enable_snapshot_controller": byocOptionalFactBool("Install the volume snapshot controller. The API defaults to true."),
+			"enable_autoscaler":          byocOptionalFactBool("Install the ClickHouse autoscaler. The API defaults to false."),
 		},
 	}
 }
@@ -277,5 +277,9 @@ func byocValidateAccessModel(ctx context.Context, model *models.ByocInfrastructu
 		if facts.ImageRegistry.IsNull() {
 			diags.AddAttributeError(factPath.AtName("image_registry"), "Missing image_registry", "Bundle image mode pulls platform images from the customer registry. Set image_registry.")
 		}
+	}
+	monitoringOff := isKnown(facts.EnableMonitoring) && !facts.EnableMonitoring.ValueBool()
+	if !facts.EnableMonitoring.IsUnknown() && !monitoringOff && facts.ScraperEndpoint.IsNull() {
+		diags.AddAttributeError(factPath.AtName("scraper_endpoint"), "Missing scraper_endpoint", "Monitoring is enabled by default and ships metrics through the connector scraper. Set scraper_endpoint, or set enable_monitoring = false.")
 	}
 }

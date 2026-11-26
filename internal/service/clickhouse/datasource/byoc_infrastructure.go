@@ -13,6 +13,7 @@ import (
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service"
+	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service/clickhouse/resource/models"
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/utils"
 )
 
@@ -46,6 +47,9 @@ type byocInfrastructureDataSourceModel struct {
 	Tags                         types.Map    `tfsdk:"tags"`
 	PrivateEndpointConfig        types.Object `tfsdk:"private_endpoint_config"`
 	CustomerAuthorizedAccess     types.Object `tfsdk:"customer_authorized_access"`
+	AccessModel                  types.String `tfsdk:"access_model"`
+	RestrictedFacts              types.Object `tfsdk:"restricted_facts"`
+	Connector                    types.Object `tfsdk:"connector"`
 }
 
 func byocCustomerAuthorizedAccessObjectType() types.ObjectType {
@@ -117,6 +121,12 @@ func byocInfrastructureDetailsToModel(ctx context.Context, details *api.ByocInfr
 	tagsValue, d := types.MapValueFrom(ctx, types.StringType, tags)
 	diags.Append(d...)
 	model.Tags = tagsValue
+
+	model.AccessModel = types.StringValue(byocAccessModelOrStandard(details.AccessModel))
+	model.RestrictedFacts, d = models.ByocRestrictedFactsObjectFromAPI(ctx, details.RestrictedFacts)
+	diags.Append(d...)
+	model.Connector, d = models.ByocConnectorObjectFromAPI(ctx, details.Connector)
+	diags.Append(d...)
 
 	return diags
 }
@@ -237,7 +247,7 @@ func (d *byocInfrastructureDataSource) Schema(_ context.Context, _ datasource.Sc
 				Computed:    true,
 			},
 			"tags": schema.MapAttribute{
-				Description: "Tags applied to the cloud resources of the infrastructure.",
+				Description: "Tags applied to the cloud resources of the infrastructure. Empty for restricted-access infrastructures, whose cloud resources ClickHouse does not manage.",
 				Computed:    true,
 				ElementType: types.StringType,
 			},
@@ -255,8 +265,11 @@ func (d *byocInfrastructureDataSource) Schema(_ context.Context, _ datasource.Sc
 					},
 				},
 			},
+			"access_model":     byocAccessModelDataSourceSchema(),
+			"restricted_facts": byocRestrictedFactsDataSourceSchema(),
+			"connector":        byocConnectorDataSourceSchema(),
 			"customer_authorized_access": schema.SingleNestedAttribute{
-				Description: "Setting that controls when ClickHouse personnel may access the infrastructure, with the current verdict. Null when the feature is not enabled for the organization.",
+				Description: "Setting that controls when ClickHouse personnel may access the infrastructure, with the current verdict. Null when the feature is not enabled for the organization, and for restricted-access infrastructures.",
 				Computed:    true,
 				Attributes: map[string]schema.Attribute{
 					"enabled": schema.BoolAttribute{
@@ -303,15 +316,28 @@ func (d *byocInfrastructureDataSource) Read(ctx context.Context, req datasource.
 		return
 	}
 
-	tags, err := d.client.GetByocInfrastructureTags(ctx, byocId)
-	if err != nil {
-		resp.Diagnostics.AddError("Error reading BYOC infrastructure tags",
-			fmt.Sprintf("Could not read tags of BYOC infrastructure %s: %s", byocId, err.Error()))
-		return
+	// The API refuses the tags, private endpoint and customer-authorized
+	// access endpoints for restricted-access infrastructures: ClickHouse
+	// manages no cloud resources in the account and has no standing access.
+	restricted := api.IsRestrictedAccess(details.AccessModel)
+	tags := map[string]string{}
+	if !restricted {
+		tags, err = d.client.GetByocInfrastructureTags(ctx, byocId)
+		if err != nil {
+			resp.Diagnostics.AddError("Error reading BYOC infrastructure tags",
+				fmt.Sprintf("Could not read tags of BYOC infrastructure %s: %s", byocId, err.Error()))
+			return
+		}
 	}
 
 	resp.Diagnostics.Append(byocInfrastructureDetailsToModel(ctx, details, tags, &cfg)...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	if restricted {
+		cfg.PrivateEndpointConfig = types.ObjectNull(byocPrivateEndpointConfigObjectType().AttrTypes)
+		cfg.CustomerAuthorizedAccess = types.ObjectNull(byocCustomerAuthorizedAccessObjectType().AttrTypes)
+		resp.Diagnostics.Append(resp.State.Set(ctx, &cfg)...)
 		return
 	}
 

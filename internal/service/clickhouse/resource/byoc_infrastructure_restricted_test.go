@@ -317,6 +317,22 @@ func TestByocInfrastructureResourceValidateConfigAccessModel(t *testing.T) {
 			wantError: "Missing image_registry",
 		},
 		{
+			name: "monitoring by default without scraper endpoint",
+			mutate: func(m *models.ByocInfrastructureResourceModel) {
+				m.RestrictedFacts = byocRestrictedFactsObject(t, func(f *models.ByocRestrictedFactsModel) { f.EnableMonitoring = types.BoolNull() })
+			},
+			wantError: "Missing scraper_endpoint",
+		},
+		{
+			name: "monitoring with scraper endpoint",
+			mutate: func(m *models.ByocInfrastructureResourceModel) {
+				m.RestrictedFacts = byocRestrictedFactsObject(t, func(f *models.ByocRestrictedFactsModel) {
+					f.EnableMonitoring = types.BoolValue(true)
+					f.ScraperEndpoint = types.StringValue("http://scraper:9093/api/v1/write")
+				})
+			},
+		},
+		{
 			name: "standard with facts",
 			mutate: func(m *models.ByocInfrastructureResourceModel) {
 				m.AccessModel = types.StringValue(api.ByocAccessModelStandard)
