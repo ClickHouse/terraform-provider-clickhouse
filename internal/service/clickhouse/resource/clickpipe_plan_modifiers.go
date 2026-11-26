@@ -179,7 +179,7 @@ func (c *ClickPipeResource) planStateAttribute(ctx context.Context, request reso
 func useJsonNativeFormatRequiresReplace() planmodifier.Bool {
 	return boolplanmodifier.RequiresReplaceIf(
 		func(_ context.Context, req planmodifier.BoolRequest, resp *boolplanmodifier.RequiresReplaceIfFuncResponse) {
-			resp.RequiresReplace = !(req.StateValue.IsNull() && !req.PlanValue.IsUnknown() && !req.PlanValue.ValueBool())
+			resp.RequiresReplace = !req.StateValue.IsNull() || req.PlanValue.IsUnknown() || req.PlanValue.ValueBool()
 		},
 		"Requires replacement if the value changes, except from unset to false (the API default).",
 		"Requires replacement if the value changes, except from unset to `false` (the API default).",
