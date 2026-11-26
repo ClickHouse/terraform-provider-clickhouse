@@ -87,7 +87,7 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				},
 			},
 			"byoc_id": schema.StringAttribute{
-				Description: "BYOC ID related to the cloud provider account you want to create this service into. When set, the per-replica memory fields (min_replica_memory_gb and max_replica_memory_gb) are required on create — a BYOC service cannot be sized via the deprecated min_total_memory_gb/max_total_memory_gb fields that non-BYOC production services accept. For a restricted-access BYOC infrastructure, reference the id of its clickhouse_byoc_infrastructure_ready resource so the service is created only once the connector has enrolled.",
+				Description: "BYOC ID related to the cloud provider account you want to create this service into. When set, the per-replica memory fields (min_replica_memory_gb and max_replica_memory_gb) are required on create — a BYOC service cannot be sized via the deprecated min_total_memory_gb/max_total_memory_gb fields that non-BYOC production services accept. For a restricted-access BYOC infrastructure, reference the id of its clickhouse_byoc_infrastructure_ready resource so the service is created only once the connector has enrolled. A service on restricted-access infrastructure runs at one fixed size: no 'profile' other than 'v1-default', equal 'min_replica_memory_gb' and 'max_replica_memory_gb', a fixed replica count, no idle scaling, and an 'ip_access' list that only allows 0.0.0.0/0. It also can't set 'transparent_data_encryption', 'compliance_type' or 'backup_id', attach private endpoints, or change 'release_channel'. The API refuses these at apply, not at plan.",
 				Optional:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),

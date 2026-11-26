@@ -97,7 +97,7 @@ func (d *serviceProfilesDataSource) Schema(_ context.Context, _ datasource.Schem
 				Optional:    true,
 			},
 			"byoc_id": schema.StringAttribute{
-				Description: "BYOC infrastructure ID. Required to include dynamic BYOC profiles in the result. When set, 'region_id' can be omitted and the BYOC infrastructure's region is used.",
+				Description: "BYOC infrastructure ID. Required to include dynamic BYOC profiles in the result. When set, 'region_id' can be omitted and the BYOC infrastructure's region is used. Not supported for a restricted-access BYOC infrastructure: its services take no profile, so there is nothing to list.",
 				Optional:    true,
 			},
 			"profiles": schema.ListNestedAttribute{
