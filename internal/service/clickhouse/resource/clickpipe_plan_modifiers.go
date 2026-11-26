@@ -6,6 +6,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
@@ -170,4 +171,17 @@ func (c *ClickPipeResource) planStateAttribute(ctx context.Context, request reso
 	if !response.Plan.Raw.Equal(request.State.Raw) {
 		response.Diagnostics.Append(response.Plan.SetAttribute(ctx, path.Root("state"), types.StringUnknown())...)
 	}
+}
+
+// useJsonNativeFormatRequiresReplace forces replacement when use_json_native_format changes,
+// except null -> false: state written before the attribute existed is null, and false is the
+// API default, so that transition is not a real change.
+func useJsonNativeFormatRequiresReplace() planmodifier.Bool {
+	return boolplanmodifier.RequiresReplaceIf(
+		func(_ context.Context, req planmodifier.BoolRequest, resp *boolplanmodifier.RequiresReplaceIfFuncResponse) {
+			resp.RequiresReplace = !req.StateValue.IsNull() || req.PlanValue.IsUnknown() || req.PlanValue.ValueBool()
+		},
+		"Requires replacement if the value changes, except from unset to false (the API default).",
+		"Requires replacement if the value changes, except from unset to `false` (the API default).",
+	)
 }
