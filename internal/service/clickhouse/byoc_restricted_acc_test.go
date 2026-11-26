@@ -187,6 +187,105 @@ resource "clickhouse_byoc_infrastructure" "test" {
 	}
 }
 
+// TestAccByocInfrastructureRestrictedReplacesStandard covers switching a
+// standard infrastructure to restricted access in the same account and
+// region: the replacement must not carry the recorded managed-VPC or BYO-VPC
+// networking into the restricted create, which the API refuses.
+func TestAccByocInfrastructureRestrictedReplacesStandard(t *testing.T) {
+	if os.Getenv("TF_ACC") == "" {
+		t.Skip("acceptance tests skipped unless env 'TF_ACC' is set")
+	}
+
+	mock := newByocMockAPI(t)
+	tracker := &byocIDTracker{}
+
+	standardConfig := func(networking string) string {
+		return byocAccProviderConfig(mock.server.URL) + fmt.Sprintf(`
+resource "clickhouse_byoc_infrastructure" "test" {
+  region_id    = "us-east-1"
+  account_id   = "999999999999"
+  display_name = "tf-acc-byoc-ra-switch"
+%s
+  skip_preflight_validation = true
+}
+`, networking)
+	}
+	restrictedConfig := byocAccProviderConfig(mock.server.URL) + `
+resource "clickhouse_byoc_infrastructure" "test" {
+  region_id    = "us-east-1"
+  account_id   = "999999999999"
+  display_name = "tf-acc-byoc-ra-switch"
+  access_model = "restricted"
+
+  restricted_facts = {
+    cluster_name       = "ra-cluster"
+    image_mode         = "direct"
+    executor_role_arn  = "arn:aws:iam::999999999999:role/executor"
+    node_role_arns     = ["arn:aws:iam::999999999999:role/node"]
+    data_bucket        = "ra-data"
+    backup_bucket      = "ra-backup"
+    storage_role_arn   = "arn:aws:iam::999999999999:role/storage"
+    enable_monitoring  = false
+  }
+}
+`
+	networkingKeys := []string{"vpcCidrRange", "vpcId", "privateSubnetIds", "publicSubnetIds", "gcpPodCidrRangeNames", "gcpSharedVpcHostProjectId", "tags"}
+	checkRestrictedReplacement := func(createCount int) resource.TestCheckFunc {
+		return resource.ComposeAggregateTestCheckFunc(
+			tracker.checkReplaced,
+			mock.checkCreateCount(createCount),
+			resource.TestCheckResourceAttr("clickhouse_byoc_infrastructure.test", "access_model", "restricted"),
+			resource.TestCheckNoResourceAttr("clickhouse_byoc_infrastructure.test", "vpc_cidr_range"),
+			resource.TestCheckNoResourceAttr("clickhouse_byoc_infrastructure.test", "vpc_id"),
+			resource.TestCheckNoResourceAttr("clickhouse_byoc_infrastructure.test", "private_subnet_ids.#"),
+			func(*terraform.State) error {
+				call := mock.lastCreateCall()
+				if call.request.RestrictedFacts == nil {
+					return fmt.Errorf("restricted create payload is missing the facts: %+v", call.request)
+				}
+				return call.requireAbsentKeys(networkingKeys...)
+			},
+		)
+	}
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             mock.checkDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: standardConfig(`  vpc_cidr_range = "172.20.0.0/16"`),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					tracker.checkStable,
+					mock.checkCreateCount(1),
+				),
+			},
+			{
+				Config: restrictedConfig,
+				Check:  checkRestrictedReplacement(2),
+			},
+			{
+				Config:   restrictedConfig,
+				PlanOnly: true,
+			},
+			{
+				Config: standardConfig(`
+  vpc_id             = "vpc-0123456789abcdef0"
+  private_subnet_ids = ["subnet-aaa111", "subnet-bbb222"]
+`),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					tracker.checkReplaced,
+					mock.checkCreateCount(3),
+					resource.TestCheckResourceAttr("clickhouse_byoc_infrastructure.test", "is_byo_vpc", "true"),
+				),
+			},
+			{
+				Config: restrictedConfig,
+				Check:  checkRestrictedReplacement(4),
+			},
+		},
+	})
+}
+
 // TestAccByocInfrastructureRestrictedStagingRead reads an existing
 // restricted-access infrastructure from a development ClickHouse Cloud,
 // through the data sources only: the provider must not call the endpoints
