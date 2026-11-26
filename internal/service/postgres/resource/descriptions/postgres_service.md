@@ -28,9 +28,10 @@ The following are intentionally absent from the schema:
 
 - Operational commands (restart / promote / switchover). See
   "Operational commands" below for the rationale.
-- Private endpoints, backup configuration, maintenance
-  windows, customer-managed encryption keys, BYOC. These depend on
-  server-side endpoint additions.
+- Backup configuration, maintenance windows, customer-managed
+  encryption keys, BYOC. These depend on server-side endpoint additions.
+- Private endpoints. Use `clickhouse_postgres_private_endpoint`
+  and `clickhouse_postgres_private_endpoint_attachment`.
 - Configurable lifecycle timeouts — there is no `timeouts {}` block; the
   provider uses fixed internal poll/retry budgets.
 
