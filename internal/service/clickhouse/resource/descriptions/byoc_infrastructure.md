@@ -19,6 +19,19 @@ ClickHouse Cloud, and for BYO-VPC topologies the VPC and subnets) must exist
 before creating this resource. See the [BYOC onboarding
 documentation](https://clickhouse.com/docs/cloud/reference/byoc) for details.
 
+With `access_model = "restricted"`, the infrastructure registers an EKS
+cluster, IAM roles and S3 buckets you provision yourself (`restricted_facts`)
+instead of having ClickHouse Cloud provision them through an onboarding role.
+ClickHouse Cloud reaches the cluster only through a connector you install.
+Creating a restricted-access infrastructure returns as soon as it is
+registered, in the `infra-awaiting-connector` state. Mint a token with
+`clickhouse_byoc_enrollment_token`, install the connector with it, and wait
+with `clickhouse_byoc_infrastructure_ready` before deploying services. The API
+accepts no changes to a restricted-access infrastructure after registration
+other than `display_name`, so the networking, connectivity, tag and
+customer-authorized access attributes are rejected, and changing
+`restricted_facts` requires replacement. Restricted access is AWS only.
+
 ~> **Note:** This resource is in beta. Its behavior may change in future provider versions.
 
 Known limitations:

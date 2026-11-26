@@ -263,8 +263,10 @@ func TestByocInfrastructureResourceValidateConfigAccessModel(t *testing.T) {
 			mutate: func(*models.ByocInfrastructureResourceModel) {},
 		},
 		{
-			name:      "restricted without facts",
-			mutate:    func(m *models.ByocInfrastructureResourceModel) { m.RestrictedFacts = types.ObjectNull(models.ByocRestrictedFactsAttrTypes()) },
+			name: "restricted without facts",
+			mutate: func(m *models.ByocInfrastructureResourceModel) {
+				m.RestrictedFacts = types.ObjectNull(models.ByocRestrictedFactsAttrTypes())
+			},
 			wantError: "Missing restricted_facts",
 		},
 		{

@@ -27,6 +27,8 @@ func (servicePackage) Resources() []func() upstreamresource.Resource {
 		resource.NewApiKeyResource,
 		resource.NewServiceResource,
 		resource.NewByocInfrastructureResource,
+		resource.NewByocEnrollmentTokenResource,
+		resource.NewByocInfrastructureReadyResource,
 		resource.NewClickPipeResource,
 		resource.NewClickPipeCdcInfrastructureResource,
 		resource.NewClickPipeReversePrivateEndpointResource,
