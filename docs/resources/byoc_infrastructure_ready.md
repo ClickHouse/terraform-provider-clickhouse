@@ -47,6 +47,8 @@ resource "clickhouse_byoc_infrastructure_ready" "restricted" {
   depends_on = [helm_release.connector]
 }
 
+# A service on restricted-access infrastructure runs at one fixed size: no
+# profile, equal memory bounds, a fixed replica count and no idle scaling.
 resource "clickhouse_service" "byoc" {
   name           = "restricted byoc service"
   password_hash  = "n4bQgYhMfWWaL+qgxVrQFaO/TxsrC4Is0V1sFbDwCgg=" # base64 encoded sha256 hash of "test"
@@ -54,9 +56,17 @@ resource "clickhouse_service" "byoc" {
   region         = clickhouse_byoc_infrastructure.restricted.region_id
   byoc_id        = clickhouse_byoc_infrastructure_ready.restricted.id
 
-  profile               = "v1-standard-byoc-4"
-  min_replica_memory_gb = 8
-  max_replica_memory_gb = 8
+  ip_access = [
+    {
+      source      = "0.0.0.0/0"
+      description = "Anywhere"
+    }
+  ]
+
+  min_replica_memory_gb = 48
+  max_replica_memory_gb = 48
+  num_replicas          = 3
+  idle_scaling          = false
 }
 ```
 
