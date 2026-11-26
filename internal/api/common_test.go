@@ -73,6 +73,11 @@ func TestRedactSensitiveBody(t *testing.T) {
 			want:  `{"newDoubleSha1Hash":"REDACTED"}`,
 		},
 		{
+			name:  "nested BYOC enrollment token redacted",
+			input: `{"result":{"token":"enroll-secret","expiresAt":"2026-01-01T00:00:00Z"}}`,
+			want:  `{"result":{"expiresAt":"2026-01-01T00:00:00Z","token":"REDACTED"}}`,
+		},
+		{
 			name:  "top-level password_wo redacted",
 			input: `{"password_wo":"plaintext-secret"}`,
 			want:  `{"password_wo":"REDACTED"}`,

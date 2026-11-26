@@ -47,6 +47,13 @@ type ClientMock struct {
 	beforeCreateByocInfrastructureCounter uint64
 	CreateByocInfrastructureMock          mClientMockCreateByocInfrastructure
 
+	funcCreateByocInfrastructureEnrollmentToken          func(ctx context.Context, byocId string, r ByocEnrollmentTokenRequest) (bp1 *ByocEnrollmentToken, err error)
+	funcCreateByocInfrastructureEnrollmentTokenOrigin    string
+	inspectFuncCreateByocInfrastructureEnrollmentToken   func(ctx context.Context, byocId string, r ByocEnrollmentTokenRequest)
+	afterCreateByocInfrastructureEnrollmentTokenCounter  uint64
+	beforeCreateByocInfrastructureEnrollmentTokenCounter uint64
+	CreateByocInfrastructureEnrollmentTokenMock          mClientMockCreateByocInfrastructureEnrollmentToken
+
 	funcCreateClickPipe          func(ctx context.Context, serviceId string, clickPipe ClickPipe) (cp1 *ClickPipe, err error)
 	funcCreateClickPipeOrigin    string
 	inspectFuncCreateClickPipe   func(ctx context.Context, serviceId string, clickPipe ClickPipe)
@@ -914,6 +921,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 
 	m.CreateByocInfrastructureMock = mClientMockCreateByocInfrastructure{mock: m}
 	m.CreateByocInfrastructureMock.callArgs = []*ClientMockCreateByocInfrastructureParams{}
+
+	m.CreateByocInfrastructureEnrollmentTokenMock = mClientMockCreateByocInfrastructureEnrollmentToken{mock: m}
+	m.CreateByocInfrastructureEnrollmentTokenMock.callArgs = []*ClientMockCreateByocInfrastructureEnrollmentTokenParams{}
 
 	m.CreateClickPipeMock = mClientMockCreateClickPipe{mock: m}
 	m.CreateClickPipeMock.callArgs = []*ClientMockCreateClickPipeParams{}
@@ -2776,6 +2786,380 @@ func (m *ClientMock) MinimockCreateByocInfrastructureInspect() {
 	if !m.CreateByocInfrastructureMock.invocationsDone() && afterCreateByocInfrastructureCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.CreateByocInfrastructure at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.CreateByocInfrastructureMock.expectedInvocations), m.CreateByocInfrastructureMock.expectedInvocationsOrigin, afterCreateByocInfrastructureCounter)
+	}
+}
+
+type mClientMockCreateByocInfrastructureEnrollmentToken struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockCreateByocInfrastructureEnrollmentTokenExpectation
+	expectations       []*ClientMockCreateByocInfrastructureEnrollmentTokenExpectation
+
+	callArgs []*ClientMockCreateByocInfrastructureEnrollmentTokenParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockCreateByocInfrastructureEnrollmentTokenExpectation specifies expectation struct of the Client.CreateByocInfrastructureEnrollmentToken
+type ClientMockCreateByocInfrastructureEnrollmentTokenExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockCreateByocInfrastructureEnrollmentTokenParams
+	paramPtrs          *ClientMockCreateByocInfrastructureEnrollmentTokenParamPtrs
+	expectationOrigins ClientMockCreateByocInfrastructureEnrollmentTokenExpectationOrigins
+	results            *ClientMockCreateByocInfrastructureEnrollmentTokenResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockCreateByocInfrastructureEnrollmentTokenParams contains parameters of the Client.CreateByocInfrastructureEnrollmentToken
+type ClientMockCreateByocInfrastructureEnrollmentTokenParams struct {
+	ctx    context.Context
+	byocId string
+	r      ByocEnrollmentTokenRequest
+}
+
+// ClientMockCreateByocInfrastructureEnrollmentTokenParamPtrs contains pointers to parameters of the Client.CreateByocInfrastructureEnrollmentToken
+type ClientMockCreateByocInfrastructureEnrollmentTokenParamPtrs struct {
+	ctx    *context.Context
+	byocId *string
+	r      *ByocEnrollmentTokenRequest
+}
+
+// ClientMockCreateByocInfrastructureEnrollmentTokenResults contains results of the Client.CreateByocInfrastructureEnrollmentToken
+type ClientMockCreateByocInfrastructureEnrollmentTokenResults struct {
+	bp1 *ByocEnrollmentToken
+	err error
+}
+
+// ClientMockCreateByocInfrastructureEnrollmentTokenOrigins contains origins of expectations of the Client.CreateByocInfrastructureEnrollmentToken
+type ClientMockCreateByocInfrastructureEnrollmentTokenExpectationOrigins struct {
+	origin       string
+	originCtx    string
+	originByocId string
+	originR      string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmCreateByocInfrastructureEnrollmentToken *mClientMockCreateByocInfrastructureEnrollmentToken) Optional() *mClientMockCreateByocInfrastructureEnrollmentToken {
+	mmCreateByocInfrastructureEnrollmentToken.optional = true
+	return mmCreateByocInfrastructureEnrollmentToken
+}
+
+// Expect sets up expected params for Client.CreateByocInfrastructureEnrollmentToken
+func (mmCreateByocInfrastructureEnrollmentToken *mClientMockCreateByocInfrastructureEnrollmentToken) Expect(ctx context.Context, byocId string, r ByocEnrollmentTokenRequest) *mClientMockCreateByocInfrastructureEnrollmentToken {
+	if mmCreateByocInfrastructureEnrollmentToken.mock.funcCreateByocInfrastructureEnrollmentToken != nil {
+		mmCreateByocInfrastructureEnrollmentToken.mock.t.Fatalf("ClientMock.CreateByocInfrastructureEnrollmentToken mock is already set by Set")
+	}
+
+	if mmCreateByocInfrastructureEnrollmentToken.defaultExpectation == nil {
+		mmCreateByocInfrastructureEnrollmentToken.defaultExpectation = &ClientMockCreateByocInfrastructureEnrollmentTokenExpectation{}
+	}
+
+	if mmCreateByocInfrastructureEnrollmentToken.defaultExpectation.paramPtrs != nil {
+		mmCreateByocInfrastructureEnrollmentToken.mock.t.Fatalf("ClientMock.CreateByocInfrastructureEnrollmentToken mock is already set by ExpectParams functions")
+	}
+
+	mmCreateByocInfrastructureEnrollmentToken.defaultExpectation.params = &ClientMockCreateByocInfrastructureEnrollmentTokenParams{ctx, byocId, r}
+	mmCreateByocInfrastructureEnrollmentToken.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmCreateByocInfrastructureEnrollmentToken.expectations {
+		if minimock.Equal(e.params, mmCreateByocInfrastructureEnrollmentToken.defaultExpectation.params) {
+			mmCreateByocInfrastructureEnrollmentToken.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmCreateByocInfrastructureEnrollmentToken.defaultExpectation.params)
+		}
+	}
+
+	return mmCreateByocInfrastructureEnrollmentToken
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.CreateByocInfrastructureEnrollmentToken
+func (mmCreateByocInfrastructureEnrollmentToken *mClientMockCreateByocInfrastructureEnrollmentToken) ExpectCtxParam1(ctx context.Context) *mClientMockCreateByocInfrastructureEnrollmentToken {
+	if mmCreateByocInfrastructureEnrollmentToken.mock.funcCreateByocInfrastructureEnrollmentToken != nil {
+		mmCreateByocInfrastructureEnrollmentToken.mock.t.Fatalf("ClientMock.CreateByocInfrastructureEnrollmentToken mock is already set by Set")
+	}
+
+	if mmCreateByocInfrastructureEnrollmentToken.defaultExpectation == nil {
+		mmCreateByocInfrastructureEnrollmentToken.defaultExpectation = &ClientMockCreateByocInfrastructureEnrollmentTokenExpectation{}
+	}
+
+	if mmCreateByocInfrastructureEnrollmentToken.defaultExpectation.params != nil {
+		mmCreateByocInfrastructureEnrollmentToken.mock.t.Fatalf("ClientMock.CreateByocInfrastructureEnrollmentToken mock is already set by Expect")
+	}
+
+	if mmCreateByocInfrastructureEnrollmentToken.defaultExpectation.paramPtrs == nil {
+		mmCreateByocInfrastructureEnrollmentToken.defaultExpectation.paramPtrs = &ClientMockCreateByocInfrastructureEnrollmentTokenParamPtrs{}
+	}
+	mmCreateByocInfrastructureEnrollmentToken.defaultExpectation.paramPtrs.ctx = &ctx
+	mmCreateByocInfrastructureEnrollmentToken.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmCreateByocInfrastructureEnrollmentToken
+}
+
+// ExpectByocIdParam2 sets up expected param byocId for Client.CreateByocInfrastructureEnrollmentToken
+func (mmCreateByocInfrastructureEnrollmentToken *mClientMockCreateByocInfrastructureEnrollmentToken) ExpectByocIdParam2(byocId string) *mClientMockCreateByocInfrastructureEnrollmentToken {
+	if mmCreateByocInfrastructureEnrollmentToken.mock.funcCreateByocInfrastructureEnrollmentToken != nil {
+		mmCreateByocInfrastructureEnrollmentToken.mock.t.Fatalf("ClientMock.CreateByocInfrastructureEnrollmentToken mock is already set by Set")
+	}
+
+	if mmCreateByocInfrastructureEnrollmentToken.defaultExpectation == nil {
+		mmCreateByocInfrastructureEnrollmentToken.defaultExpectation = &ClientMockCreateByocInfrastructureEnrollmentTokenExpectation{}
+	}
+
+	if mmCreateByocInfrastructureEnrollmentToken.defaultExpectation.params != nil {
+		mmCreateByocInfrastructureEnrollmentToken.mock.t.Fatalf("ClientMock.CreateByocInfrastructureEnrollmentToken mock is already set by Expect")
+	}
+
+	if mmCreateByocInfrastructureEnrollmentToken.defaultExpectation.paramPtrs == nil {
+		mmCreateByocInfrastructureEnrollmentToken.defaultExpectation.paramPtrs = &ClientMockCreateByocInfrastructureEnrollmentTokenParamPtrs{}
+	}
+	mmCreateByocInfrastructureEnrollmentToken.defaultExpectation.paramPtrs.byocId = &byocId
+	mmCreateByocInfrastructureEnrollmentToken.defaultExpectation.expectationOrigins.originByocId = minimock.CallerInfo(1)
+
+	return mmCreateByocInfrastructureEnrollmentToken
+}
+
+// ExpectRParam3 sets up expected param r for Client.CreateByocInfrastructureEnrollmentToken
+func (mmCreateByocInfrastructureEnrollmentToken *mClientMockCreateByocInfrastructureEnrollmentToken) ExpectRParam3(r ByocEnrollmentTokenRequest) *mClientMockCreateByocInfrastructureEnrollmentToken {
+	if mmCreateByocInfrastructureEnrollmentToken.mock.funcCreateByocInfrastructureEnrollmentToken != nil {
+		mmCreateByocInfrastructureEnrollmentToken.mock.t.Fatalf("ClientMock.CreateByocInfrastructureEnrollmentToken mock is already set by Set")
+	}
+
+	if mmCreateByocInfrastructureEnrollmentToken.defaultExpectation == nil {
+		mmCreateByocInfrastructureEnrollmentToken.defaultExpectation = &ClientMockCreateByocInfrastructureEnrollmentTokenExpectation{}
+	}
+
+	if mmCreateByocInfrastructureEnrollmentToken.defaultExpectation.params != nil {
+		mmCreateByocInfrastructureEnrollmentToken.mock.t.Fatalf("ClientMock.CreateByocInfrastructureEnrollmentToken mock is already set by Expect")
+	}
+
+	if mmCreateByocInfrastructureEnrollmentToken.defaultExpectation.paramPtrs == nil {
+		mmCreateByocInfrastructureEnrollmentToken.defaultExpectation.paramPtrs = &ClientMockCreateByocInfrastructureEnrollmentTokenParamPtrs{}
+	}
+	mmCreateByocInfrastructureEnrollmentToken.defaultExpectation.paramPtrs.r = &r
+	mmCreateByocInfrastructureEnrollmentToken.defaultExpectation.expectationOrigins.originR = minimock.CallerInfo(1)
+
+	return mmCreateByocInfrastructureEnrollmentToken
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.CreateByocInfrastructureEnrollmentToken
+func (mmCreateByocInfrastructureEnrollmentToken *mClientMockCreateByocInfrastructureEnrollmentToken) Inspect(f func(ctx context.Context, byocId string, r ByocEnrollmentTokenRequest)) *mClientMockCreateByocInfrastructureEnrollmentToken {
+	if mmCreateByocInfrastructureEnrollmentToken.mock.inspectFuncCreateByocInfrastructureEnrollmentToken != nil {
+		mmCreateByocInfrastructureEnrollmentToken.mock.t.Fatalf("Inspect function is already set for ClientMock.CreateByocInfrastructureEnrollmentToken")
+	}
+
+	mmCreateByocInfrastructureEnrollmentToken.mock.inspectFuncCreateByocInfrastructureEnrollmentToken = f
+
+	return mmCreateByocInfrastructureEnrollmentToken
+}
+
+// Return sets up results that will be returned by Client.CreateByocInfrastructureEnrollmentToken
+func (mmCreateByocInfrastructureEnrollmentToken *mClientMockCreateByocInfrastructureEnrollmentToken) Return(bp1 *ByocEnrollmentToken, err error) *ClientMock {
+	if mmCreateByocInfrastructureEnrollmentToken.mock.funcCreateByocInfrastructureEnrollmentToken != nil {
+		mmCreateByocInfrastructureEnrollmentToken.mock.t.Fatalf("ClientMock.CreateByocInfrastructureEnrollmentToken mock is already set by Set")
+	}
+
+	if mmCreateByocInfrastructureEnrollmentToken.defaultExpectation == nil {
+		mmCreateByocInfrastructureEnrollmentToken.defaultExpectation = &ClientMockCreateByocInfrastructureEnrollmentTokenExpectation{mock: mmCreateByocInfrastructureEnrollmentToken.mock}
+	}
+	mmCreateByocInfrastructureEnrollmentToken.defaultExpectation.results = &ClientMockCreateByocInfrastructureEnrollmentTokenResults{bp1, err}
+	mmCreateByocInfrastructureEnrollmentToken.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmCreateByocInfrastructureEnrollmentToken.mock
+}
+
+// Set uses given function f to mock the Client.CreateByocInfrastructureEnrollmentToken method
+func (mmCreateByocInfrastructureEnrollmentToken *mClientMockCreateByocInfrastructureEnrollmentToken) Set(f func(ctx context.Context, byocId string, r ByocEnrollmentTokenRequest) (bp1 *ByocEnrollmentToken, err error)) *ClientMock {
+	if mmCreateByocInfrastructureEnrollmentToken.defaultExpectation != nil {
+		mmCreateByocInfrastructureEnrollmentToken.mock.t.Fatalf("Default expectation is already set for the Client.CreateByocInfrastructureEnrollmentToken method")
+	}
+
+	if len(mmCreateByocInfrastructureEnrollmentToken.expectations) > 0 {
+		mmCreateByocInfrastructureEnrollmentToken.mock.t.Fatalf("Some expectations are already set for the Client.CreateByocInfrastructureEnrollmentToken method")
+	}
+
+	mmCreateByocInfrastructureEnrollmentToken.mock.funcCreateByocInfrastructureEnrollmentToken = f
+	mmCreateByocInfrastructureEnrollmentToken.mock.funcCreateByocInfrastructureEnrollmentTokenOrigin = minimock.CallerInfo(1)
+	return mmCreateByocInfrastructureEnrollmentToken.mock
+}
+
+// When sets expectation for the Client.CreateByocInfrastructureEnrollmentToken which will trigger the result defined by the following
+// Then helper
+func (mmCreateByocInfrastructureEnrollmentToken *mClientMockCreateByocInfrastructureEnrollmentToken) When(ctx context.Context, byocId string, r ByocEnrollmentTokenRequest) *ClientMockCreateByocInfrastructureEnrollmentTokenExpectation {
+	if mmCreateByocInfrastructureEnrollmentToken.mock.funcCreateByocInfrastructureEnrollmentToken != nil {
+		mmCreateByocInfrastructureEnrollmentToken.mock.t.Fatalf("ClientMock.CreateByocInfrastructureEnrollmentToken mock is already set by Set")
+	}
+
+	expectation := &ClientMockCreateByocInfrastructureEnrollmentTokenExpectation{
+		mock:               mmCreateByocInfrastructureEnrollmentToken.mock,
+		params:             &ClientMockCreateByocInfrastructureEnrollmentTokenParams{ctx, byocId, r},
+		expectationOrigins: ClientMockCreateByocInfrastructureEnrollmentTokenExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmCreateByocInfrastructureEnrollmentToken.expectations = append(mmCreateByocInfrastructureEnrollmentToken.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.CreateByocInfrastructureEnrollmentToken return parameters for the expectation previously defined by the When method
+func (e *ClientMockCreateByocInfrastructureEnrollmentTokenExpectation) Then(bp1 *ByocEnrollmentToken, err error) *ClientMock {
+	e.results = &ClientMockCreateByocInfrastructureEnrollmentTokenResults{bp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.CreateByocInfrastructureEnrollmentToken should be invoked
+func (mmCreateByocInfrastructureEnrollmentToken *mClientMockCreateByocInfrastructureEnrollmentToken) Times(n uint64) *mClientMockCreateByocInfrastructureEnrollmentToken {
+	if n == 0 {
+		mmCreateByocInfrastructureEnrollmentToken.mock.t.Fatalf("Times of ClientMock.CreateByocInfrastructureEnrollmentToken mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmCreateByocInfrastructureEnrollmentToken.expectedInvocations, n)
+	mmCreateByocInfrastructureEnrollmentToken.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmCreateByocInfrastructureEnrollmentToken
+}
+
+func (mmCreateByocInfrastructureEnrollmentToken *mClientMockCreateByocInfrastructureEnrollmentToken) invocationsDone() bool {
+	if len(mmCreateByocInfrastructureEnrollmentToken.expectations) == 0 && mmCreateByocInfrastructureEnrollmentToken.defaultExpectation == nil && mmCreateByocInfrastructureEnrollmentToken.mock.funcCreateByocInfrastructureEnrollmentToken == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmCreateByocInfrastructureEnrollmentToken.mock.afterCreateByocInfrastructureEnrollmentTokenCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmCreateByocInfrastructureEnrollmentToken.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// CreateByocInfrastructureEnrollmentToken implements Client
+func (mmCreateByocInfrastructureEnrollmentToken *ClientMock) CreateByocInfrastructureEnrollmentToken(ctx context.Context, byocId string, r ByocEnrollmentTokenRequest) (bp1 *ByocEnrollmentToken, err error) {
+	mm_atomic.AddUint64(&mmCreateByocInfrastructureEnrollmentToken.beforeCreateByocInfrastructureEnrollmentTokenCounter, 1)
+	defer mm_atomic.AddUint64(&mmCreateByocInfrastructureEnrollmentToken.afterCreateByocInfrastructureEnrollmentTokenCounter, 1)
+
+	mmCreateByocInfrastructureEnrollmentToken.t.Helper()
+
+	if mmCreateByocInfrastructureEnrollmentToken.inspectFuncCreateByocInfrastructureEnrollmentToken != nil {
+		mmCreateByocInfrastructureEnrollmentToken.inspectFuncCreateByocInfrastructureEnrollmentToken(ctx, byocId, r)
+	}
+
+	mm_params := ClientMockCreateByocInfrastructureEnrollmentTokenParams{ctx, byocId, r}
+
+	// Record call args
+	mmCreateByocInfrastructureEnrollmentToken.CreateByocInfrastructureEnrollmentTokenMock.mutex.Lock()
+	mmCreateByocInfrastructureEnrollmentToken.CreateByocInfrastructureEnrollmentTokenMock.callArgs = append(mmCreateByocInfrastructureEnrollmentToken.CreateByocInfrastructureEnrollmentTokenMock.callArgs, &mm_params)
+	mmCreateByocInfrastructureEnrollmentToken.CreateByocInfrastructureEnrollmentTokenMock.mutex.Unlock()
+
+	for _, e := range mmCreateByocInfrastructureEnrollmentToken.CreateByocInfrastructureEnrollmentTokenMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.bp1, e.results.err
+		}
+	}
+
+	if mmCreateByocInfrastructureEnrollmentToken.CreateByocInfrastructureEnrollmentTokenMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmCreateByocInfrastructureEnrollmentToken.CreateByocInfrastructureEnrollmentTokenMock.defaultExpectation.Counter, 1)
+		mm_want := mmCreateByocInfrastructureEnrollmentToken.CreateByocInfrastructureEnrollmentTokenMock.defaultExpectation.params
+		mm_want_ptrs := mmCreateByocInfrastructureEnrollmentToken.CreateByocInfrastructureEnrollmentTokenMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockCreateByocInfrastructureEnrollmentTokenParams{ctx, byocId, r}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmCreateByocInfrastructureEnrollmentToken.t.Errorf("ClientMock.CreateByocInfrastructureEnrollmentToken got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmCreateByocInfrastructureEnrollmentToken.CreateByocInfrastructureEnrollmentTokenMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.byocId != nil && !minimock.Equal(*mm_want_ptrs.byocId, mm_got.byocId) {
+				mmCreateByocInfrastructureEnrollmentToken.t.Errorf("ClientMock.CreateByocInfrastructureEnrollmentToken got unexpected parameter byocId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmCreateByocInfrastructureEnrollmentToken.CreateByocInfrastructureEnrollmentTokenMock.defaultExpectation.expectationOrigins.originByocId, *mm_want_ptrs.byocId, mm_got.byocId, minimock.Diff(*mm_want_ptrs.byocId, mm_got.byocId))
+			}
+
+			if mm_want_ptrs.r != nil && !minimock.Equal(*mm_want_ptrs.r, mm_got.r) {
+				mmCreateByocInfrastructureEnrollmentToken.t.Errorf("ClientMock.CreateByocInfrastructureEnrollmentToken got unexpected parameter r, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmCreateByocInfrastructureEnrollmentToken.CreateByocInfrastructureEnrollmentTokenMock.defaultExpectation.expectationOrigins.originR, *mm_want_ptrs.r, mm_got.r, minimock.Diff(*mm_want_ptrs.r, mm_got.r))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmCreateByocInfrastructureEnrollmentToken.t.Errorf("ClientMock.CreateByocInfrastructureEnrollmentToken got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmCreateByocInfrastructureEnrollmentToken.CreateByocInfrastructureEnrollmentTokenMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmCreateByocInfrastructureEnrollmentToken.CreateByocInfrastructureEnrollmentTokenMock.defaultExpectation.results
+		if mm_results == nil {
+			mmCreateByocInfrastructureEnrollmentToken.t.Fatal("No results are set for the ClientMock.CreateByocInfrastructureEnrollmentToken")
+		}
+		return (*mm_results).bp1, (*mm_results).err
+	}
+	if mmCreateByocInfrastructureEnrollmentToken.funcCreateByocInfrastructureEnrollmentToken != nil {
+		return mmCreateByocInfrastructureEnrollmentToken.funcCreateByocInfrastructureEnrollmentToken(ctx, byocId, r)
+	}
+	mmCreateByocInfrastructureEnrollmentToken.t.Fatalf("Unexpected call to ClientMock.CreateByocInfrastructureEnrollmentToken. %v %v %v", ctx, byocId, r)
+	return
+}
+
+// CreateByocInfrastructureEnrollmentTokenAfterCounter returns a count of finished ClientMock.CreateByocInfrastructureEnrollmentToken invocations
+func (mmCreateByocInfrastructureEnrollmentToken *ClientMock) CreateByocInfrastructureEnrollmentTokenAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmCreateByocInfrastructureEnrollmentToken.afterCreateByocInfrastructureEnrollmentTokenCounter)
+}
+
+// CreateByocInfrastructureEnrollmentTokenBeforeCounter returns a count of ClientMock.CreateByocInfrastructureEnrollmentToken invocations
+func (mmCreateByocInfrastructureEnrollmentToken *ClientMock) CreateByocInfrastructureEnrollmentTokenBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmCreateByocInfrastructureEnrollmentToken.beforeCreateByocInfrastructureEnrollmentTokenCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.CreateByocInfrastructureEnrollmentToken.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmCreateByocInfrastructureEnrollmentToken *mClientMockCreateByocInfrastructureEnrollmentToken) Calls() []*ClientMockCreateByocInfrastructureEnrollmentTokenParams {
+	mmCreateByocInfrastructureEnrollmentToken.mutex.RLock()
+
+	argCopy := make([]*ClientMockCreateByocInfrastructureEnrollmentTokenParams, len(mmCreateByocInfrastructureEnrollmentToken.callArgs))
+	copy(argCopy, mmCreateByocInfrastructureEnrollmentToken.callArgs)
+
+	mmCreateByocInfrastructureEnrollmentToken.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockCreateByocInfrastructureEnrollmentTokenDone returns true if the count of the CreateByocInfrastructureEnrollmentToken invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockCreateByocInfrastructureEnrollmentTokenDone() bool {
+	if m.CreateByocInfrastructureEnrollmentTokenMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.CreateByocInfrastructureEnrollmentTokenMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.CreateByocInfrastructureEnrollmentTokenMock.invocationsDone()
+}
+
+// MinimockCreateByocInfrastructureEnrollmentTokenInspect logs each unmet expectation
+func (m *ClientMock) MinimockCreateByocInfrastructureEnrollmentTokenInspect() {
+	for _, e := range m.CreateByocInfrastructureEnrollmentTokenMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.CreateByocInfrastructureEnrollmentToken at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterCreateByocInfrastructureEnrollmentTokenCounter := mm_atomic.LoadUint64(&m.afterCreateByocInfrastructureEnrollmentTokenCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.CreateByocInfrastructureEnrollmentTokenMock.defaultExpectation != nil && afterCreateByocInfrastructureEnrollmentTokenCounter < 1 {
+		if m.CreateByocInfrastructureEnrollmentTokenMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.CreateByocInfrastructureEnrollmentToken at\n%s", m.CreateByocInfrastructureEnrollmentTokenMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.CreateByocInfrastructureEnrollmentToken at\n%s with params: %#v", m.CreateByocInfrastructureEnrollmentTokenMock.defaultExpectation.expectationOrigins.origin, *m.CreateByocInfrastructureEnrollmentTokenMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcCreateByocInfrastructureEnrollmentToken != nil && afterCreateByocInfrastructureEnrollmentTokenCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.CreateByocInfrastructureEnrollmentToken at\n%s", m.funcCreateByocInfrastructureEnrollmentTokenOrigin)
+	}
+
+	if !m.CreateByocInfrastructureEnrollmentTokenMock.invocationsDone() && afterCreateByocInfrastructureEnrollmentTokenCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.CreateByocInfrastructureEnrollmentToken at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.CreateByocInfrastructureEnrollmentTokenMock.expectedInvocations), m.CreateByocInfrastructureEnrollmentTokenMock.expectedInvocationsOrigin, afterCreateByocInfrastructureEnrollmentTokenCounter)
 	}
 }
 
@@ -46594,6 +46978,8 @@ func (m *ClientMock) MinimockFinish() {
 
 			m.MinimockCreateByocInfrastructureInspect()
 
+			m.MinimockCreateByocInfrastructureEnrollmentTokenInspect()
+
 			m.MinimockCreateClickPipeInspect()
 
 			m.MinimockCreateJWTProviderInspect()
@@ -46862,6 +47248,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockChangeClickPipeStateDone() &&
 		m.MinimockCreateApiKeyDone() &&
 		m.MinimockCreateByocInfrastructureDone() &&
+		m.MinimockCreateByocInfrastructureEnrollmentTokenDone() &&
 		m.MinimockCreateClickPipeDone() &&
 		m.MinimockCreateJWTProviderDone() &&
 		m.MinimockCreatePostgresDone() &&

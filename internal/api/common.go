@@ -38,6 +38,8 @@ var sensitiveBodyKeys = map[string]struct{}{
 	"presignedURL":      {},
 	"protobufSchema":    {},
 	"keySecret":         {},
+	// BYOC enrollment tokens enroll a connector into the organization.
+	"token": {},
 	// Postgres connection strings embed the generated password in the URI.
 	"connectionString":  {},
 	"connection_string": {},
