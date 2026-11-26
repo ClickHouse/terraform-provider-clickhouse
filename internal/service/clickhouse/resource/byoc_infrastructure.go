@@ -481,6 +481,8 @@ func (r *ByocInfrastructureResource) Schema(_ context.Context, _ resource.Schema
 				Optional:    true,
 			},
 			"customer_authorized_access": byocCustomerAuthorizedAccessSchema(),
+			"access_model":               byocAccessModelSchema(),
+			"restricted_facts":           byocRestrictedFactsSchema(),
 		},
 	}
 }
@@ -497,6 +499,10 @@ func (r *ByocInfrastructureResource) ValidateConfig(ctx context.Context, req res
 		return
 	}
 	byocValidateCustomerAccess(ctx, config.CustomerAuthorizedAccess, &resp.Diagnostics)
+	byocValidateAccessModel(ctx, &config, &resp.Diagnostics)
+	if byocConfigIsRestricted(&config) {
+		return
+	}
 	if config.GcpPscSubnetID.IsNull() || config.GcpPscSubnetID.IsUnknown() || config.EnablePrivateLink.IsUnknown() {
 		return
 	}
@@ -558,7 +564,7 @@ func (r *ByocInfrastructureResource) Create(ctx context.Context, req resource.Cr
 		if !validation.Supported {
 			resp.Diagnostics.AddWarning(
 				"BYOC preflight validation not supported",
-				fmt.Sprintf("Preflight validation is not supported for cloud provider %q, so no cloud permissions were verified before creating.", validation.CloudProvider),
+				fmt.Sprintf("Preflight validation is not supported for cloud provider %q, so nothing was verified before creating.", validation.CloudProvider),
 			)
 		} else if !validation.AllPassed {
 			resp.Diagnostics.AddError("BYOC preflight validation failed", formatFailedByocChecks(validation))
@@ -568,17 +574,29 @@ func (r *ByocInfrastructureResource) Create(ctx context.Context, req resource.Cr
 
 	infra, err := r.client.CreateByocInfrastructure(ctx, createRequest)
 	if err != nil {
-		resp.Diagnostics.AddError("Error creating BYOC infrastructure", err.Error())
+		detail := err.Error()
+		if api.IsConflict(err) && byocConfigIsRestricted(&plan) {
+			detail += "\n\nA restricted-access infrastructure may already be registered for this account and region. To manage it, import it with 'terraform import <resource address> <BYOC infrastructure ID>'."
+		}
+		resp.Diagnostics.AddError("Error creating BYOC infrastructure", detail)
 		return
 	}
 
 	// Persist state before waiting: provisioning takes up to an hour and a
 	// timeout must not orphan the created infrastructure.
 	if !r.syncByocResourceState(ctx, infra.Id, &plan, &resp.Diagnostics) {
-		applyByocSummaryFallback(infra, &plan)
+		applyByocSummaryFallback(ctx, infra, &plan, &resp.Diagnostics)
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// A restricted-access infrastructure only becomes ready once the customer
+	// installs the connector, typically later in the same configuration with
+	// clickhouse_byoc_enrollment_token; clickhouse_byoc_infrastructure_ready
+	// waits for it. The API accepts no settings to align after create.
+	if byocConfigIsRestricted(&plan) {
 		return
 	}
 
@@ -677,7 +695,7 @@ func (r *ByocInfrastructureResource) Read(ctx context.Context, req resource.Read
 		return
 	}
 
-	tags, err := r.client.GetByocInfrastructureTags(ctx, state.ID.ValueString())
+	tags, err := r.readByocTags(ctx, details)
 	if err != nil {
 		resp.Diagnostics.AddError("Error reading BYOC infrastructure tags", err.Error())
 		return
@@ -835,6 +853,12 @@ func resolveUnknownComputedFromState(plan, state *models.ByocInfrastructureResou
 	if plan.CustomerAuthorizedAccess.IsUnknown() {
 		plan.CustomerAuthorizedAccess = state.CustomerAuthorizedAccess
 	}
+	if plan.AccessModel.IsUnknown() {
+		plan.AccessModel = state.AccessModel
+	}
+	if plan.RestrictedFacts.IsUnknown() {
+		plan.RestrictedFacts = state.RestrictedFacts
+	}
 }
 
 func (r *ByocInfrastructureResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -883,7 +907,7 @@ func (r *ByocInfrastructureResource) syncByocResourceState(ctx context.Context, 
 		diags.AddWarning("Could not refresh BYOC infrastructure", fmt.Sprintf("Reading BYOC infrastructure %s failed: %s", byocId, err.Error()))
 		return false
 	}
-	tags, err := r.client.GetByocInfrastructureTags(ctx, byocId)
+	tags, err := r.readByocTags(ctx, details)
 	if err != nil {
 		diags.AddWarning("Could not refresh BYOC infrastructure tags", fmt.Sprintf("Reading tags of BYOC infrastructure %s failed: %s", byocId, err.Error()))
 		return false
@@ -891,6 +915,16 @@ func (r *ByocInfrastructureResource) syncByocResourceState(ctx context.Context, 
 	d := applyByocDetailsToResourceState(ctx, details, tags, model)
 	diags.Append(d...)
 	return !d.HasError()
+}
+
+// readByocTags reads the tags of a standard infrastructure. Restricted-access
+// infrastructures have none: ClickHouse cannot tag resources in the account,
+// and the API refuses the tags endpoint for them.
+func (r *ByocInfrastructureResource) readByocTags(ctx context.Context, details *api.ByocInfrastructureDetails) (map[string]string, error) {
+	if api.IsRestrictedAccess(details.AccessModel) {
+		return map[string]string{}, nil
+	}
+	return r.client.GetByocInfrastructureTags(ctx, details.Id)
 }
 
 // applyByocDetailsToResourceState maps the read-back onto the model. Only
@@ -927,14 +961,24 @@ func applyByocDetailsToResourceState(ctx context.Context, details *api.ByocInfra
 	diags.Append(d...)
 	model.Tags = tagsValue
 
+	model.AccessModel = types.StringValue(byocAccessModelOrStandard(details.AccessModel))
+	model.RestrictedFacts, d = models.ByocRestrictedFactsObjectFromAPI(ctx, details.RestrictedFacts)
+	diags.Append(d...)
+
 	return diags
 }
 
 // applyByocSummaryFallback fills the model from the create response and nulls
 // the remaining computed attributes so the state can be persisted even when
 // the details read-back failed right after creation.
-func applyByocSummaryFallback(infra *api.ByocInfrastructure, model *models.ByocInfrastructureResourceModel) {
+func applyByocSummaryFallback(ctx context.Context, infra *api.ByocInfrastructure, model *models.ByocInfrastructureResourceModel, diags *diag.Diagnostics) {
 	model.ID = types.StringValue(infra.Id)
+	if infra.AccessModel != "" {
+		model.AccessModel = types.StringValue(infra.AccessModel)
+	}
+	facts, d := models.ByocResolveUnknownRestrictedFacts(ctx, model.RestrictedFacts)
+	diags.Append(d...)
+	model.RestrictedFacts = facts
 	model.State = types.StringValue(infra.State)
 	model.CloudProvider = types.StringValue(infra.CloudProvider)
 	model.DisplayName = types.StringValue(infra.DisplayName)
@@ -1015,7 +1059,22 @@ func byocCreateRequestFromModel(ctx context.Context, model *models.ByocInfrastru
 		request.Tags = tags
 	}
 
+	// Standard is the API default; sending it explicitly is left out so the
+	// payload of standard infrastructures is unchanged.
+	if byocConfigIsRestricted(model) {
+		request.AccessModel = model.AccessModel.ValueStringPointer()
+		request.RestrictedFacts, d = models.ByocRestrictedFactsFromObject(ctx, model.RestrictedFacts)
+		diags.Append(d...)
+	}
+
 	return request, diags
+}
+
+func byocAccessModelOrStandard(accessModel string) string {
+	if accessModel == "" {
+		return api.ByocAccessModelStandard
+	}
+	return accessModel
 }
 
 func byocValidateRequestFromCreate(r api.ByocInfrastructureCreateRequest) api.ByocInfrastructureValidateRequest {
@@ -1033,6 +1092,8 @@ func byocValidateRequestFromCreate(r api.ByocInfrastructureCreateRequest) api.By
 		GcpPodCidrRangeNames:      r.GcpPodCidrRangeNames,
 		GcpSharedVpcHostProjectId: r.GcpSharedVpcHostProjectId,
 		Tags:                      r.Tags,
+		AccessModel:               r.AccessModel,
+		RestrictedFacts:           r.RestrictedFacts,
 	}
 }
 
@@ -1137,7 +1198,7 @@ func formatFailedByocChecks(validation *api.ByocInfrastructureValidation) string
 		failed = append(failed, line)
 	}
 	return fmt.Sprintf(
-		"The preflight validation found %d failing cloud permission check(s):\n%s\n\nFix the cloud-side setup and retry, or set skip_preflight_validation = true to create anyway.",
+		"The preflight validation found %d failing check(s):\n%s\n\nFix the cloud-side setup and retry, or set skip_preflight_validation = true to create anyway.",
 		len(failed), strings.Join(failed, "\n"),
 	)
 }

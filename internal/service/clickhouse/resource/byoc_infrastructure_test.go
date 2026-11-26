@@ -48,6 +48,8 @@ func byocInfraModel() models.ByocInfrastructureResourceModel {
 		GcpPodCidrRangeNames:     types.ListNull(types.StringType),
 		Tags:                     types.MapNull(types.StringType),
 		CustomerAuthorizedAccess: types.ObjectNull(byocCustomerAccessAttrTypes()),
+		AccessModel:              types.StringValue(api.ByocAccessModelStandard),
+		RestrictedFacts:          types.ObjectNull(models.ByocRestrictedFactsAttrTypes()),
 	}
 }
 

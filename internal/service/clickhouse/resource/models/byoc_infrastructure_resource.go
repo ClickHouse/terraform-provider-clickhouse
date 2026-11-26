@@ -27,4 +27,6 @@ type ByocInfrastructureResourceModel struct {
 	IsByoVpc                  types.Bool   `tfsdk:"is_byo_vpc"`
 	SkipPreflightValidation   types.Bool   `tfsdk:"skip_preflight_validation"`
 	CustomerAuthorizedAccess  types.Object `tfsdk:"customer_authorized_access"`
+	AccessModel               types.String `tfsdk:"access_model"`
+	RestrictedFacts           types.Object `tfsdk:"restricted_facts"`
 }
