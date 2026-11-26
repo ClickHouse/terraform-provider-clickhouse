@@ -1169,7 +1169,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 										Computed:            true,
 										Default:             booldefault.StaticBool(false),
 										PlanModifiers: []planmodifier.Bool{
-											boolplanmodifier.RequiresReplace(),
+											useJsonNativeFormatRequiresReplace(),
 										},
 									},
 									"initial_load_parallelism": schema.Int64Attribute{
@@ -1506,7 +1506,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 										Computed:            true,
 										Default:             booldefault.StaticBool(false),
 										PlanModifiers: []planmodifier.Bool{
-											boolplanmodifier.RequiresReplace(),
+											useJsonNativeFormatRequiresReplace(),
 										},
 									},
 									"initial_load_parallelism": schema.Int64Attribute{
@@ -5112,13 +5112,13 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			settingsModel.AllowNullableColumns = types.BoolNull()
 		}
 
-		// UseJsonNativeFormat: preserve state/plan value when API doesn't return this field
+		// UseJsonNativeFormat: preserve state/plan value when API doesn't return this field, else the API default (false)
 		if clickPipe.Source.Postgres.Settings.UseJsonNativeFormat != nil {
 			settingsModel.UseJsonNativeFormat = types.BoolValue(*clickPipe.Source.Postgres.Settings.UseJsonNativeFormat)
 		} else if !stateSettingsModel.UseJsonNativeFormat.IsNull() {
 			settingsModel.UseJsonNativeFormat = stateSettingsModel.UseJsonNativeFormat
 		} else {
-			settingsModel.UseJsonNativeFormat = types.BoolNull()
+			settingsModel.UseJsonNativeFormat = types.BoolValue(false)
 		}
 
 		if clickPipe.Source.Postgres.Settings.InitialLoadParallelism != nil {
@@ -5382,13 +5382,13 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			settingsModel.AllowNullableColumns = types.BoolNull()
 		}
 
-		// UseJsonNativeFormat: preserve state/plan value when API doesn't return this field
+		// UseJsonNativeFormat: preserve state/plan value when API doesn't return this field, else the API default (false)
 		if clickPipe.Source.MySQL.Settings.UseJsonNativeFormat != nil {
 			settingsModel.UseJsonNativeFormat = types.BoolValue(*clickPipe.Source.MySQL.Settings.UseJsonNativeFormat)
 		} else if !stateSettingsModel.UseJsonNativeFormat.IsNull() {
 			settingsModel.UseJsonNativeFormat = stateSettingsModel.UseJsonNativeFormat
 		} else {
-			settingsModel.UseJsonNativeFormat = types.BoolNull()
+			settingsModel.UseJsonNativeFormat = types.BoolValue(false)
 		}
 
 		if clickPipe.Source.MySQL.Settings.InitialLoadParallelism != nil {

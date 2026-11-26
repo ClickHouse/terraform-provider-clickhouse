@@ -369,3 +369,49 @@ func TestRequiresReplaceIfSchemaRegistryChanges(t *testing.T) {
 		})
 	}
 }
+
+func TestUseJsonNativeFormatRequiresReplace(t *testing.T) {
+	t.Parallel()
+
+	existing := tftypes.NewValue(tftypes.Object{}, map[string]tftypes.Value{})
+	created := tftypes.NewValue(tftypes.Object{}, nil)
+
+	testCases := map[string]struct {
+		stateRaw                tftypes.Value
+		stateValue              types.Bool
+		planValue               types.Bool
+		expectedRequiresReplace bool
+	}{
+		"unset-to-false (provider upgrade, refresh skipped)": {existing, types.BoolNull(), types.BoolValue(false), false},
+		"unset-to-true":    {existing, types.BoolNull(), types.BoolValue(true), true},
+		"unset-to-unknown": {existing, types.BoolNull(), types.BoolUnknown(), true},
+		"false-to-true":    {existing, types.BoolValue(false), types.BoolValue(true), true},
+		"true-to-false":    {existing, types.BoolValue(true), types.BoolValue(false), true},
+		"false-to-false":   {existing, types.BoolValue(false), types.BoolValue(false), false},
+		"true-to-true":     {existing, types.BoolValue(true), types.BoolValue(true), false},
+		"create with true": {created, types.BoolNull(), types.BoolValue(true), false},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			req := planmodifier.BoolRequest{
+				State:      tfsdk.State{Raw: tc.stateRaw},
+				Plan:       tfsdk.Plan{Raw: existing},
+				StateValue: tc.stateValue,
+				PlanValue:  tc.planValue,
+			}
+			resp := &planmodifier.BoolResponse{PlanValue: tc.planValue}
+
+			useJsonNativeFormatRequiresReplace().PlanModifyBool(context.Background(), req, resp)
+
+			if resp.Diagnostics.HasError() {
+				t.Fatalf("unexpected diagnostics: %v", resp.Diagnostics)
+			}
+			if resp.RequiresReplace != tc.expectedRequiresReplace {
+				t.Errorf("RequiresReplace = %v, want %v", resp.RequiresReplace, tc.expectedRequiresReplace)
+			}
+		})
+	}
+}

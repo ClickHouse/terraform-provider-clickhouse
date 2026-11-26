@@ -129,7 +129,7 @@ func TestClickPipeResource_syncClickPipeState_UseJsonNativeFormat(t *testing.T) 
 		{name: "true from API is read back", stateValue: types.BoolValue(false), apiValue: boolPtr(true), expected: types.BoolValue(true)},
 		{name: "false from API is read back", stateValue: types.BoolValue(true), apiValue: boolPtr(false), expected: types.BoolValue(false)},
 		{name: "omitted by API preserves the state default", stateValue: types.BoolValue(false), apiValue: nil, expected: types.BoolValue(false)},
-		{name: "omitted by API stays null when unset", stateValue: types.BoolNull(), apiValue: nil, expected: types.BoolNull()},
+		{name: "omitted by API defaults to false when unset", stateValue: types.BoolNull(), apiValue: nil, expected: types.BoolValue(false)},
 	}
 
 	t.Run("postgres", func(t *testing.T) {
