@@ -267,9 +267,11 @@ func (c *ClientImpl) CreateByocInfrastructure(ctx context.Context, r ByocInfrast
 
 	// No retries: the API has no idempotency key, and replaying a create whose
 	// response was lost could start a duplicate hour-long provisioning.
+	// Unwrapped so callers can classify the status (IsConflict matches the
+	// "status: 409" prefix).
 	body, err := c.doRequestWithStatus(ctx, req, false)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create BYOC infrastructure: %w", err)
+		return nil, err
 	}
 
 	resp := ResponseWithResult[ByocInfrastructure]{}
