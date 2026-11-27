@@ -1,6 +1,8 @@
 package models
 
 import (
+	"context"
+
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
@@ -481,6 +483,29 @@ func (m ClickPipePostgresTableMappingModel) ObjectValue() types.Object {
 	})
 }
 
+// ClickPipePostgresMutualTLSModel is the client certificate a Postgres ClickPipe
+// presents to the source for mutual TLS.
+type ClickPipePostgresMutualTLSModel struct {
+	Certificate types.String `tfsdk:"certificate"`
+	PrivateKey  types.String `tfsdk:"private_key"`
+}
+
+func (m ClickPipePostgresMutualTLSModel) ObjectType() types.ObjectType {
+	return types.ObjectType{
+		AttrTypes: map[string]attr.Type{
+			"certificate": types.StringType,
+			"private_key": types.StringType,
+		},
+	}
+}
+
+func (m ClickPipePostgresMutualTLSModel) ObjectValue() types.Object {
+	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
+		"certificate": m.Certificate,
+		"private_key": m.PrivateKey,
+	})
+}
+
 type ClickPipePostgresSourceModel struct {
 	Type                 types.String `tfsdk:"type"`
 	Host                 types.String `tfsdk:"host"`
@@ -493,6 +518,7 @@ type ClickPipePostgresSourceModel struct {
 	DisableTLS           types.Bool   `tfsdk:"disable_tls"`
 	SkipCertVerification types.Bool   `tfsdk:"skip_cert_verification"`
 	Credentials          types.Object `tfsdk:"credentials"`
+	MutualTLS            types.Object `tfsdk:"mutual_tls"`
 	Settings             types.Object `tfsdk:"settings"`
 	TableMappings        types.Set    `tfsdk:"table_mappings"`
 	SSHKeyResourceID     types.String `tfsdk:"ssh_key_resource_id"`
@@ -512,6 +538,7 @@ func (m ClickPipePostgresSourceModel) ObjectType() types.ObjectType {
 			"disable_tls":            types.BoolType,
 			"skip_cert_verification": types.BoolType,
 			"credentials":            ClickPipeSourceCredentialsModel{}.ObjectType(),
+			"mutual_tls":             ClickPipePostgresMutualTLSModel{}.ObjectType(),
 			"settings":               ClickPipePostgresSettingsModel{}.ObjectType(),
 			"table_mappings":         types.SetType{ElemType: ClickPipePostgresTableMappingModel{}.ObjectType()},
 			"ssh_key_resource_id":    types.StringType,
@@ -520,6 +547,12 @@ func (m ClickPipePostgresSourceModel) ObjectType() types.ObjectType {
 }
 
 func (m ClickPipePostgresSourceModel) ObjectValue() types.Object {
+	// mutual_tls is optional and write-only, so most callers never set it. Treat
+	// the zero value as null rather than making every caller spell that out.
+	mutualTLS := m.MutualTLS
+	if len(mutualTLS.AttributeTypes(context.Background())) == 0 {
+		mutualTLS = types.ObjectNull(ClickPipePostgresMutualTLSModel{}.ObjectType().AttrTypes)
+	}
 	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
 		"type":                   m.Type,
 		"host":                   m.Host,
@@ -532,6 +565,7 @@ func (m ClickPipePostgresSourceModel) ObjectValue() types.Object {
 		"disable_tls":            m.DisableTLS,
 		"skip_cert_verification": m.SkipCertVerification,
 		"credentials":            m.Credentials,
+		"mutual_tls":             mutualTLS,
 		"settings":               m.Settings,
 		"table_mappings":         m.TableMappings,
 		"ssh_key_resource_id":    m.SSHKeyResourceID,

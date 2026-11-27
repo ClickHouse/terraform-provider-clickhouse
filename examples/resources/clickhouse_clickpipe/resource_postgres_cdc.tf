@@ -15,6 +15,12 @@ resource "clickhouse_clickpipe" "postgres_cdc_clickpipe" {
         password = "***"
       }
 
+      # Optional: Client certificate for mutual TLS (not compatible with disable_tls = true)
+      # mutual_tls {
+      #   certificate = file("client.crt")
+      #   private_key = file("client.key")
+      # }
+
       settings {
         replication_mode = "cdc"
 

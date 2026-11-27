@@ -126,6 +126,7 @@ func buildPostgresPlanWithCredentials(credentials types.Object) models.ClickPipe
 		"disable_tls":            types.BoolNull(),
 		"skip_cert_verification": types.BoolNull(),
 		"credentials":            credentials,
+		"mutual_tls":             types.ObjectNull(models.ClickPipePostgresMutualTLSModel{}.ObjectType().AttrTypes),
 		"settings":               types.ObjectValueMust(models.ClickPipePostgresSettingsModel{}.ObjectType().AttrTypes, settingsAttrs),
 		"table_mappings": types.SetValueMust(models.ClickPipePostgresTableMappingModel{}.ObjectType(), []attr.Value{
 			types.ObjectValueMust(models.ClickPipePostgresTableMappingModel{}.ObjectType().AttrTypes, tableMappingAttrs),
