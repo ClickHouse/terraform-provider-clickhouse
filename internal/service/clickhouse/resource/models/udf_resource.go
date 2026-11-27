@@ -20,7 +20,9 @@ type UDFResourceModel struct {
 	CommandReadTimeout      types.Int64  `tfsdk:"command_read_timeout"`
 	CommandWriteTimeout     types.Int64  `tfsdk:"command_write_timeout"`
 	MaxCommandExecutionTime types.Int64  `tfsdk:"max_command_execution_time"`
+	MemoryLimitMib          types.Int64  `tfsdk:"memory_limit_mib"`
 	SendChunkHeader         types.Bool   `tfsdk:"send_chunk_header"`
+	Deterministic           types.Bool   `tfsdk:"deterministic"`
 	Format                  types.String `tfsdk:"format"`
 	SandboxType             types.String `tfsdk:"sandbox_type"`
 	FailOnBuildError        types.Bool   `tfsdk:"fail_on_build_error"`

@@ -53,6 +53,8 @@ func TestUDFResourceUpgradeStateDropsSandboxVersion(t *testing.T) {
 	want.Status = types.StringValue(api.UDFStatusReady)
 	want.CreatedAt = types.StringValue("2026-07-21T10:00:00.000Z")
 	want.UpdatedAt = want.CreatedAt
+	// Attributes added after version 0 are null until the next refresh reads them.
+	want.Deterministic = types.BoolNull()
 	wantState := tfsdk.State{Schema: schemaResp.Schema}
 	if diags := wantState.Set(ctx, want); diags.HasError() {
 		t.Fatalf("set expected state: %v", diags)
@@ -94,8 +96,8 @@ func TestUDFResourceSchemaMatchesPublicUX(t *testing.T) {
 	wantAttributes := []string{
 		"function_name", "runtime", "arguments", "return_type", "type", "pool_size",
 		"source_archive_path", "source_archive_hash", "return_name", "command_read_timeout",
-		"command_write_timeout", "max_command_execution_time", "send_chunk_header", "format",
-		"sandbox_type", "fail_on_build_error", "version", "status", "error",
+		"command_write_timeout", "max_command_execution_time", "memory_limit_mib", "send_chunk_header",
+		"deterministic", "format", "sandbox_type", "fail_on_build_error", "version", "status", "error",
 		"created_at", "updated_at",
 	}
 	if len(resp.Schema.Attributes) != len(wantAttributes) {
@@ -122,6 +124,14 @@ func TestUDFResourceSchemaMatchesPublicUX(t *testing.T) {
 	maxExecutionTime, ok := resp.Schema.Attributes["max_command_execution_time"].(schema.Int64Attribute)
 	if !ok || !maxExecutionTime.Optional || !maxExecutionTime.Computed || maxExecutionTime.Default != nil {
 		t.Errorf("max_command_execution_time must support a conditional computed default: %#v", maxExecutionTime)
+	}
+	memoryLimit, ok := resp.Schema.Attributes["memory_limit_mib"].(schema.Int64Attribute)
+	if !ok || !memoryLimit.Optional || memoryLimit.Computed || memoryLimit.Default != nil || len(memoryLimit.Validators) != 1 {
+		t.Errorf("memory_limit_mib must be optional, not computed, and range-validated, so removing it restores the sandbox default: %#v", memoryLimit)
+	}
+	deterministic, ok := resp.Schema.Attributes["deterministic"].(schema.BoolAttribute)
+	if !ok || !deterministic.Optional || !deterministic.Computed || deterministic.Default == nil {
+		t.Errorf("deterministic must be optional/computed with default false: %#v", deterministic)
 	}
 	failOnBuildError, ok := resp.Schema.Attributes["fail_on_build_error"].(schema.BoolAttribute)
 	if !ok || !failOnBuildError.Optional || !failOnBuildError.Computed || failOnBuildError.Default == nil {
@@ -181,13 +191,18 @@ func TestUDFResourceCreateUploadsPublishesAndPolls(t *testing.T) {
 	planModel.SourceArchivePath = types.StringValue(archivePath)
 	planModel.PoolSize = types.Int64Value(3)
 	planModel.SandboxType = types.StringValue(api.UDFSandboxTypeBasic)
+	planModel.MemoryLimitMib = types.Int64Value(512)
+	planModel.Deterministic = types.BoolValue(true)
 	plan := tfsdk.Plan{Schema: sch, Raw: tftypes.NewValue(sch.Type().TerraformType(ctx), nil)}
 	if diags := plan.Set(ctx, &planModel); diags.HasError() {
 		t.Fatalf("set plan fixture: %v", diags)
 	}
 
+	memoryLimit := int64(512)
 	building := testAPIUDF(api.UDFStatusBuilding, 1)
+	building.MemoryLimitMib, building.Deterministic = &memoryLimit, true
 	ready := testAPIUDF(api.UDFStatusReady, 1)
+	ready.MemoryLimitMib, ready.Deterministic = &memoryLimit, true
 	mc := minimock.NewController(t)
 	client := api.NewClientMock(mc)
 	client.CreateUDFUploadSessionMock.Expect(ctx).Return(&api.UDFUploadSession{
@@ -201,6 +216,9 @@ func TestUDFResourceCreateUploadsPublishesAndPolls(t *testing.T) {
 		}
 		if request.PoolSize == nil || *request.PoolSize != 3 || request.CommandReadTimeout != 10000 {
 			t.Errorf("create request = %+v; missing runtime config", request)
+		}
+		if request.MemoryLimitMib == nil || *request.MemoryLimitMib != 512 || !request.Deterministic {
+			t.Errorf("create request = %+v; missing memory_limit_mib/deterministic", request)
 		}
 	}).Return(building, nil)
 	getCalls := 0
@@ -231,6 +249,9 @@ func TestUDFResourceCreateUploadsPublishesAndPolls(t *testing.T) {
 	}
 	if state.Version.ValueInt64() != 1 || state.Status.ValueString() != api.UDFStatusReady {
 		t.Fatalf("created state = %+v; want ready version 1", state)
+	}
+	if state.MemoryLimitMib.ValueInt64() != 512 || !state.Deterministic.ValueBool() {
+		t.Fatalf("created state = %+v; want memory_limit_mib 512 and deterministic true", state)
 	}
 }
 
@@ -546,6 +567,39 @@ func TestUDFPublishUnknownRejectsMismatchedVersionAndSettings(t *testing.T) {
 	}
 	if len(diags.Warnings()) != 0 {
 		t.Fatalf("reconciliation warnings = %v; mismatched UDF must not be adopted", diags)
+	}
+}
+
+func TestUDFMatchesPublishPlanComparesDeterministicAndMemoryLimit(t *testing.T) {
+	ctx := context.Background()
+	plan := testUDFResourceModel(t, api.UDFRuntimePython311, api.UDFTypeExecutablePool)
+	plan.PoolSize = types.Int64Value(3)
+	plan.SandboxType = types.StringValue(api.UDFSandboxTypeBasic)
+	plan.MemoryLimitMib = types.Int64Value(512)
+	plan.Deterministic = types.BoolValue(true)
+
+	memoryLimit := int64(512)
+	otherMemoryLimit := int64(1024)
+	tests := []struct {
+		name          string
+		memoryLimit   *int64
+		deterministic bool
+		want          bool
+	}{
+		{name: "same settings", memoryLimit: &memoryLimit, deterministic: true, want: true},
+		{name: "different memory limit", memoryLimit: &otherMemoryLimit, deterministic: true, want: false},
+		{name: "sandbox default memory limit", memoryLimit: nil, deterministic: true, want: false},
+		{name: "not deterministic", memoryLimit: &memoryLimit, deterministic: false, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			observed := testAPIUDF(api.UDFStatusBuilding, 1)
+			observed.MemoryLimitMib = tt.memoryLimit
+			observed.Deterministic = tt.deterministic
+			if got, reason := udfMatchesPublishPlan(ctx, observed, plan); got != tt.want {
+				t.Fatalf("udfMatchesPublishPlan = %t (%s); want %t", got, reason, tt.want)
+			}
+		})
 	}
 }
 
@@ -999,6 +1053,57 @@ func TestUDFResourceUpdatePolicyOnlyDoesNotPublish(t *testing.T) {
 	}
 }
 
+func TestUDFResourceUpdateStateWithoutDeterministicDoesNotPublish(t *testing.T) {
+	ctx := context.Background()
+	r := NewUDFResource().(*UDFResource)
+	schemaResp := &resource.SchemaResponse{}
+	r.Schema(ctx, resource.SchemaRequest{}, schemaResp)
+	sch := schemaResp.Schema
+
+	// State written by a provider version without deterministic, planned with
+	// -refresh=false: the default false must not publish a new version.
+	stateModel := testUDFResourceModel(t, api.UDFRuntimePython311, api.UDFTypeExecutablePool)
+	stateModel.PoolSize = types.Int64Value(3)
+	stateModel.SandboxType = types.StringValue(api.UDFSandboxTypeBasic)
+	stateModel.Version = types.Int64Value(7)
+	stateModel.Status = types.StringValue(api.UDFStatusReady)
+	stateModel.Deterministic = types.BoolNull()
+	priorState := tfsdk.State{Schema: sch, Raw: tftypes.NewValue(sch.Type().TerraformType(ctx), nil)}
+	if diags := priorState.Set(ctx, &stateModel); diags.HasError() {
+		t.Fatalf("set prior state fixture: %v", diags)
+	}
+
+	planModel := stateModel
+	planModel.Deterministic = types.BoolValue(false)
+	plan := tfsdk.Plan{Schema: sch, Raw: tftypes.NewValue(sch.Type().TerraformType(ctx), nil)}
+	if diags := plan.Set(ctx, &planModel); diags.HasError() {
+		t.Fatalf("set plan fixture: %v", diags)
+	}
+
+	mc := minimock.NewController(t)
+	client := api.NewClientMock(mc)
+	r.client = client
+
+	resp := &resource.UpdateResponse{
+		State: tfsdk.State{Schema: sch, Raw: tftypes.NewValue(sch.Type().TerraformType(ctx), nil)},
+	}
+	r.Update(ctx, resource.UpdateRequest{Plan: plan, State: priorState}, resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("Update diagnostics: %v", resp.Diagnostics)
+	}
+	if got := client.CreateUDFVersionAfterCounter(); got != 0 {
+		t.Fatalf("CreateUDFVersion calls = %d; want 0 for unset -> false deterministic", got)
+	}
+
+	var state models.UDFResourceModel
+	if diags := resp.State.Get(ctx, &state); diags.HasError() {
+		t.Fatalf("read updated state: %v", diags)
+	}
+	if !state.Deterministic.Equal(types.BoolValue(false)) || state.Version.ValueInt64() != 7 {
+		t.Fatalf("updated state = %+v; want deterministic false at the unchanged version 7", state)
+	}
+}
+
 func TestUDFResourceModifyPlanPreservesBuildAttributesForPolicyOnlyChange(t *testing.T) {
 	ctx := context.Background()
 	r := NewUDFResource().(*UDFResource)
@@ -1113,6 +1218,27 @@ func TestUDFPublishInputsChangedIgnoresFailOnBuildError(t *testing.T) {
 	otherHash.SourceArchiveHash = types.StringValue("next-hash")
 	if !udfPublishInputsChanged(base, otherHash) {
 		t.Fatal("source_archive_hash difference must count as a publish input change")
+	}
+
+	withMemoryLimit := base
+	withMemoryLimit.MemoryLimitMib = types.Int64Value(512)
+	if !udfPublishInputsChanged(withMemoryLimit, base) || !udfPublishInputsChanged(base, withMemoryLimit) {
+		t.Fatal("setting or removing memory_limit_mib must count as a publish input change")
+	}
+
+	deterministic := base
+	deterministic.Deterministic = types.BoolValue(true)
+	if !udfPublishInputsChanged(deterministic, base) {
+		t.Fatal("deterministic difference must count as a publish input change")
+	}
+
+	legacyState := base
+	legacyState.Deterministic = types.BoolNull()
+	if udfPublishInputsChanged(base, legacyState) {
+		t.Fatal("unset -> false deterministic (state from an older provider) must not count as a publish input change")
+	}
+	if !udfPublishInputsChanged(deterministic, legacyState) {
+		t.Fatal("unset -> true deterministic must count as a publish input change")
 	}
 }
 
@@ -1338,6 +1464,7 @@ func TestApplyUDFToStateMapsEveryReadableField(t *testing.T) {
 	errorMessage := "build failed"
 	poolSize := int64(5)
 	maxExecutionTime := int64(12)
+	memoryLimit := int64(2048)
 	state := testUDFResourceModel(t, api.UDFRuntimePython311, api.UDFTypeExecutablePool)
 	state.SourceArchivePath = types.StringValue("/tmp/function.zip")
 	state.SourceArchiveHash = types.StringValue("archive-hash")
@@ -1356,7 +1483,9 @@ func TestApplyUDFToStateMapsEveryReadableField(t *testing.T) {
 		CommandReadTimeout:      10001,
 		CommandWriteTimeout:     10002,
 		MaxCommandExecutionTime: &maxExecutionTime,
+		MemoryLimitMib:          &memoryLimit,
 		SendChunkHeader:         true,
+		Deterministic:           true,
 		Format:                  "JSONEachRow",
 		SandboxType:             api.UDFSandboxTypeNetEnable,
 		SandboxVersion:          api.UDFSandboxVersionV3,
@@ -1373,6 +1502,18 @@ func TestApplyUDFToStateMapsEveryReadableField(t *testing.T) {
 	}
 	if state.CommandReadTimeout.ValueInt64() != 10001 || state.Format.ValueString() != "JSONEachRow" || !state.SendChunkHeader.ValueBool() {
 		t.Fatalf("writable fields were not refreshed: %+v", state)
+	}
+	if state.MemoryLimitMib.ValueInt64() != 2048 || !state.Deterministic.ValueBool() {
+		t.Fatalf("memory_limit_mib/deterministic were not refreshed: %+v", state)
+	}
+
+	udf.MemoryLimitMib = nil
+	udf.Deterministic = false
+	if diags := applyUDFToState(ctx, udf, &state); diags.HasError() {
+		t.Fatalf("applyUDFToState: %v", diags)
+	}
+	if !state.MemoryLimitMib.IsNull() || state.Deterministic.ValueBool() {
+		t.Fatalf("memory_limit_mib = %v, deterministic = %v; want null and false for the API defaults", state.MemoryLimitMib, state.Deterministic)
 	}
 	if state.SourceArchivePath.ValueString() != "/tmp/function.zip" || state.SourceArchiveHash.ValueString() != "archive-hash" {
 		t.Fatalf("write-only source attributes were not preserved: %+v", state)
@@ -2093,6 +2234,90 @@ func TestUDFResourceUpdateHashChangeStillPublishes(t *testing.T) {
 	}
 }
 
+func TestUDFResourceUpdatePublishesForDeterministicAndMemoryLimitChanges(t *testing.T) {
+	memoryLimit := int64(512)
+	tests := []struct {
+		name              string
+		stateMemoryLimit  types.Int64
+		planMemoryLimit   types.Int64
+		planDeterministic bool
+		wantMemoryLimit   *int64
+	}{
+		{name: "deterministic on", stateMemoryLimit: types.Int64Null(), planMemoryLimit: types.Int64Null(), planDeterministic: true, wantMemoryLimit: nil},
+		{name: "memory limit set", stateMemoryLimit: types.Int64Null(), planMemoryLimit: types.Int64Value(512), wantMemoryLimit: &memoryLimit},
+		{name: "memory limit removed", stateMemoryLimit: types.Int64Value(512), planMemoryLimit: types.Int64Null(), wantMemoryLimit: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			archivePath := filepath.Join(t.TempDir(), "function.zip")
+			if err := os.WriteFile(archivePath, []byte("zip bytes"), 0o600); err != nil {
+				t.Fatalf("write archive fixture: %v", err)
+			}
+
+			r := NewUDFResource().(*UDFResource)
+			schemaResp := &resource.SchemaResponse{}
+			r.Schema(ctx, resource.SchemaRequest{}, schemaResp)
+			sch := schemaResp.Schema
+
+			stateModel := testUDFResourceModel(t, api.UDFRuntimePython311, api.UDFTypeExecutablePool)
+			stateModel.PoolSize = types.Int64Value(3)
+			stateModel.SandboxType = types.StringValue(api.UDFSandboxTypeBasic)
+			stateModel.SourceArchivePath = types.StringValue(archivePath)
+			stateModel.MemoryLimitMib = tt.stateMemoryLimit
+			stateModel.Version = types.Int64Value(1)
+			stateModel.Status = types.StringValue(api.UDFStatusReady)
+			priorState := tfsdk.State{Schema: sch, Raw: tftypes.NewValue(sch.Type().TerraformType(ctx), nil)}
+			if diags := priorState.Set(ctx, &stateModel); diags.HasError() {
+				t.Fatalf("set prior state fixture: %v", diags)
+			}
+
+			planModel := stateModel
+			planModel.MemoryLimitMib = tt.planMemoryLimit
+			planModel.Deterministic = types.BoolValue(tt.planDeterministic)
+			plan := tfsdk.Plan{Schema: sch, Raw: tftypes.NewValue(sch.Type().TerraformType(ctx), nil)}
+			if diags := plan.Set(ctx, &planModel); diags.HasError() {
+				t.Fatalf("set plan fixture: %v", diags)
+			}
+
+			created := testAPIUDF(api.UDFStatusReady, 2)
+			created.MemoryLimitMib = tt.wantMemoryLimit
+			created.Deterministic = tt.planDeterministic
+			mc := minimock.NewController(t)
+			client := api.NewClientMock(mc)
+			client.CreateUDFUploadSessionMock.Return(&api.UDFUploadSession{UploadID: "upload-2", UploadURL: "https://upload.example/2"}, nil)
+			client.UploadUDFArchiveMock.Return(nil)
+			client.CreateUDFVersionMock.Inspect(func(_ context.Context, _ string, request api.UDFVersionCreateRequest) {
+				if !equalUDFInt64Pointer(request.MemoryLimitMib, tt.wantMemoryLimit) || request.Deterministic != tt.planDeterministic {
+					t.Errorf("version request memoryLimitMib = %v, deterministic = %t; want %v, %t",
+						request.MemoryLimitMib, request.Deterministic, tt.wantMemoryLimit, tt.planDeterministic)
+				}
+			}).Return(created, nil)
+			client.GetUDFMock.Return(created, nil)
+			r.client = client
+
+			resp := &resource.UpdateResponse{
+				State: tfsdk.State{Schema: sch, Raw: tftypes.NewValue(sch.Type().TerraformType(ctx), nil)},
+			}
+			r.Update(ctx, resource.UpdateRequest{Plan: plan, State: priorState}, resp)
+			if resp.Diagnostics.HasError() {
+				t.Fatalf("Update diagnostics: %v", resp.Diagnostics)
+			}
+			if got := client.CreateUDFVersionAfterCounter(); got != 1 {
+				t.Fatalf("CreateUDFVersion calls = %d; want 1", got)
+			}
+
+			var state models.UDFResourceModel
+			if diags := resp.State.Get(ctx, &state); diags.HasError() {
+				t.Fatalf("read updated state: %v", diags)
+			}
+			if !state.MemoryLimitMib.Equal(tt.planMemoryLimit) || state.Deterministic.ValueBool() != tt.planDeterministic || state.Version.ValueInt64() != 2 {
+				t.Fatalf("updated state = %+v; want the planned settings at version 2", state)
+			}
+		})
+	}
+}
+
 func TestUDFResourceDeleteSucceeds(t *testing.T) {
 	ctx := context.Background()
 	r := NewUDFResource().(*UDFResource)
@@ -2202,7 +2427,9 @@ func testUDFResourceModel(t *testing.T, runtime, udfType string) models.UDFResou
 		CommandReadTimeout:      types.Int64Value(10000),
 		CommandWriteTimeout:     types.Int64Value(10000),
 		MaxCommandExecutionTime: types.Int64Value(10),
+		MemoryLimitMib:          types.Int64Null(),
 		SendChunkHeader:         types.BoolValue(false),
+		Deterministic:           types.BoolValue(false),
 		Format:                  types.StringValue("TabSeparated"),
 		SandboxType:             types.StringNull(),
 		FailOnBuildError:        types.BoolValue(true),

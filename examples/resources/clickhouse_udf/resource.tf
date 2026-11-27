@@ -15,4 +15,6 @@ resource "clickhouse_udf" "echo_string" {
   command_read_timeout       = 10000
   command_write_timeout      = 10000
   max_command_execution_time = 10
+  memory_limit_mib           = 512
+  deterministic              = true
 }

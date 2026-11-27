@@ -65,7 +65,9 @@ type UDF struct {
 	CommandReadTimeout      int64         `json:"commandReadTimeout"`
 	CommandWriteTimeout     int64         `json:"commandWriteTimeout"`
 	MaxCommandExecutionTime *int64        `json:"maxCommandExecutionTime"`
+	MemoryLimitMib          *int64        `json:"memoryLimitMib"`
 	SendChunkHeader         bool          `json:"sendChunkHeader"`
+	Deterministic           bool          `json:"deterministic"`
 	Format                  string        `json:"format"`
 	SandboxType             string        `json:"sandboxType"`
 	SandboxVersion          string        `json:"sandboxVersion"`
@@ -133,7 +135,9 @@ type UDFVersionCreateRequest struct {
 	CommandReadTimeout      int64         `json:"commandReadTimeout"`
 	CommandWriteTimeout     int64         `json:"commandWriteTimeout"`
 	MaxCommandExecutionTime *int64        `json:"maxCommandExecutionTime"`
+	MemoryLimitMib          *int64        `json:"memoryLimitMib"`
 	SendChunkHeader         bool          `json:"sendChunkHeader"`
+	Deterministic           bool          `json:"deterministic"`
 	Format                  string        `json:"format"`
 	SandboxType             string        `json:"sandboxType"`
 }
