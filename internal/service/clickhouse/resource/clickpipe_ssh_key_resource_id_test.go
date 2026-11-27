@@ -108,6 +108,8 @@ func buildMongoDBSSHKeyResourcePlan(sshKeyResourceID types.String) models.ClickP
 	mongoAttrs := map[string]attr.Value{
 		"uri":                    types.StringValue("mongodb+srv://cluster0.example.mongodb.net/mydb"),
 		"read_preference":        types.StringValue("secondaryPreferred"),
+		"authentication":         types.StringValue("basic"),
+		"iam_role":               types.StringNull(),
 		"tls_host":               types.StringNull(),
 		"ca_certificate":         types.StringNull(),
 		"disable_tls":            types.BoolNull(),
