@@ -71,37 +71,29 @@ type ApiKeyCreateResult struct {
 // matching KeySuffix against the provider's own token — a search used by the
 // clickhouse_api_key_id data source when the key ID is not known up front. For
 // a direct lookup by a known ID, use GetApiKey instead.
+//
+// The keys list is cursor-paginated: every page is walked until a match.
 func (c *ClientImpl) GetApiKeyID(ctx context.Context, name *string) (*ApiKey, error) {
-	req, err := http.NewRequest(http.MethodGet, c.getOrgPath("/keys"), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	body, err := c.doRequest(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-
-	apiKeysResponse := ResponseWithResult[[]ApiKey]{}
-	err = json.Unmarshal(body, &apiKeysResponse)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, key := range apiKeysResponse.Result {
+	var found *ApiKey
+	err := eachItem(ctx, c, c.getOrgPath("/keys"), nil, func(key ApiKey) bool {
 		// We want to match a key by name
 		if name != nil {
 			if *name == key.Name {
-				return &key, nil
+				found = &key
 			}
-		} else {
+		} else if strings.HasSuffix(c.TokenKey, key.KeySuffix) {
 			// Find id of the API key configured for this terraform provider run.
 			// Since we don't know the ID of the API key on the client side, we need to a pattern match on the KeySuffix.
 			// This is a very weak check, but that's all we have until https://github.com/ClickHouse/control-plane/issues/13294 is implemented.
-			if strings.HasSuffix(c.TokenKey, key.KeySuffix) {
-				return &key, nil
-			}
+			found = &key
 		}
+		return found != nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if found != nil {
+		return found, nil
 	}
 
 	errorMsg := "key not found"

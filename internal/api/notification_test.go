@@ -12,6 +12,12 @@ import (
 
 const memberSettingsPath = "/organizations/" + testOrgID + "/members/user-1/notificationSettings"
 
+// notificationSettingsPage is one page of the cursor-paginated settings list.
+type notificationSettingsPage struct {
+	Result     []NotificationSetting `json:"result"`
+	NextCursor *string               `json:"nextCursor"`
+}
+
 func TestListMemberNotificationSettingsFollowsTheCursor(t *testing.T) {
 	firstPage := []NotificationSetting{
 		{Type: "service_backup_failed", ResourceType: "service", ResourceID: "svc-1", ChannelType: "email", Effect: NotificationEffectDisabled},
