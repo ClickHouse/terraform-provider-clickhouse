@@ -59,6 +59,7 @@ Read-Only:
 
 - `cloud_provider` (String)
 - `created_at` (String)
+- `deletion_protection` (Boolean) Whether the Postgres service is protected from deletion. `false` and unset both mean it is not protected; ClickHouse Cloud leaves the field out when the feature is not enabled for the organization.
 - `ha_type` (String)
 - `id` (String)
 - `is_primary` (Boolean)
