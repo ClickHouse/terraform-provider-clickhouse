@@ -31,12 +31,20 @@ func mongoDBColumns(nameTypes ...string) types.List {
 
 func mongoDBStructuredIngestion(columns types.List) models.ClickPipeMongoDBStructuredIngestionModel {
 	return models.ClickPipeMongoDBStructuredIngestionModel{
-		DropUnexpectedValues: types.BoolNull(),
-		Columns:              columns,
-		ExcludedColumns:      types.SetNull(types.StringType),
-		SortingKeys:          types.ListNull(types.StringType),
-		PartitionByExpr:      types.StringNull(),
+		DropUnexpectedValues:   types.BoolNull(),
+		Columns:                columns,
+		ReinferColumnsOnResync: types.BoolNull(),
+		ExcludedColumns:        types.SetNull(types.StringType),
+		SortingKeys:            types.ListNull(types.StringType),
+		PartitionByExpr:        types.StringNull(),
 	}
+}
+
+// mongoDBInferredOnResync is structured ingestion with reinfer_columns_on_resync set.
+func mongoDBInferredOnResync(columns types.List) models.ClickPipeMongoDBStructuredIngestionModel {
+	si := mongoDBStructuredIngestion(columns)
+	si.ReinferColumnsOnResync = types.BoolValue(true)
+	return si
 }
 
 func TestConvertMongoDBStructuredIngestionModelToAPI(t *testing.T) {
@@ -61,6 +69,12 @@ func TestConvertMongoDBStructuredIngestionModelToAPI(t *testing.T) {
 		{
 			name:     "omitted columns ask the API to infer them",
 			obj:      inferred.ObjectValue(),
+			expected: `{"enabled":true}`,
+		},
+		{
+			// The API only accepts reinferColumns on resync, see TestMongoDBTableMappingDeltas_ReinferColumnsOnResync.
+			name:     "reinfer_columns_on_resync is not sent",
+			obj:      mongoDBInferredOnResync(types.ListNull(models.ClickPipeMongoDBColumnModel{}.ObjectType())).ObjectValue(),
 			expected: `{"enabled":true}`,
 		},
 		{
@@ -139,6 +153,12 @@ func TestMongoDBStructuredIngestionFromAPI(t *testing.T) {
 			apiSI:    &api.ClickPipeMongoDBStructuredIngestion{Enabled: true, DropUnexpectedValues: &f, Columns: nameColumn},
 			state:    mongoDBStructuredIngestion(mongoDBColumns("name", "Int64")).ObjectValue(),
 			expected: mongoDBStructuredIngestion(mongoDBColumns("name", "String")).ObjectValue(),
+		},
+		{
+			name:     "reinfer_columns_on_resync is kept from state",
+			apiSI:    &api.ClickPipeMongoDBStructuredIngestion{Enabled: true, DropUnexpectedValues: &f, Columns: nameColumn},
+			state:    mongoDBInferredOnResync(unknownColumns).ObjectValue(),
+			expected: mongoDBInferredOnResync(mongoDBColumns("name", "String")).ObjectValue(),
 		},
 		{
 			name:     "columns are read from the API on import",
@@ -275,9 +295,16 @@ func TestRepairMongoDBInferredColumnsPlan(t *testing.T) {
 	inferredState := mongoDBStructuredIngestion(mongoDBColumns("name", "String"))
 	provided := mongoDBStructuredIngestion(mongoDBColumns("model", "String"))
 
+	resynced := func(m models.ClickPipeMongoDBTableMappingModel) models.ClickPipeMongoDBTableMappingModel {
+		m.ResyncVersion = types.Int64Value(1)
+		return m
+	}
+
 	state := mongoDBModelWithMappings(t,
 		mongoDBStructuredMapping("replicants", inferredState),
 		mongoDBStructuredMapping("missions", provided),
+		mongoDBStructuredMapping("androids", inferredState),
+		mongoDBStructuredMapping("hunters", inferredState),
 	)
 	plan := mongoDBModelWithMappings(t,
 		// existing inferred mapping: the framework marked its columns unknown
@@ -286,6 +313,10 @@ func TestRepairMongoDBInferredColumnsPlan(t *testing.T) {
 		mongoDBStructuredMapping("missions", provided),
 		// new inferred mapping: read after apply
 		mongoDBStructuredMapping("bounties", mongoDBStructuredIngestion(unknownColumns)),
+		// resynced with reinfer_columns_on_resync: inferred again, read after apply
+		resynced(mongoDBStructuredMapping("androids", mongoDBInferredOnResync(unknownColumns))),
+		// reinfer_columns_on_resync without a resync: keeps the current columns
+		mongoDBStructuredMapping("hunters", mongoDBInferredOnResync(unknownColumns)),
 	)
 
 	repaired, diags := repairMongoDBInferredColumnsPlan(ctx, &plan, state)
@@ -296,6 +327,8 @@ func TestRepairMongoDBInferredColumnsPlan(t *testing.T) {
 		mongoDBStructuredMapping("replicants", inferredState),
 		mongoDBStructuredMapping("missions", provided),
 		mongoDBStructuredMapping("bounties", mongoDBStructuredIngestion(unknownColumns)),
+		resynced(mongoDBStructuredMapping("androids", mongoDBInferredOnResync(unknownColumns))),
+		mongoDBStructuredMapping("hunters", mongoDBInferredOnResync(mongoDBColumns("name", "String"))),
 	)
 	assert.True(t, expected.Source.Equal(plan.Source), "expected %v, got %v", expected.Source, plan.Source)
 

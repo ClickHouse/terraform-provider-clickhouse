@@ -112,6 +112,7 @@ func buildPostgresPlanWithCredentials(credentials types.Object) models.ClickPipe
 		"table_engine":           types.StringNull(),
 		"partition_key":          types.StringNull(),
 		"partition_by_expr":      types.StringNull(),
+		"resync_version":         types.Int64Null(),
 	}
 	pgAttrs := map[string]attr.Value{
 		"ssh_key_resource_id":    types.StringNull(),
@@ -240,6 +241,7 @@ func buildMySQLPlanWithCredentials(credentials types.Object) models.ClickPipeRes
 		"table_engine":           types.StringNull(),
 		"partition_key":          types.StringNull(),
 		"partition_by_expr":      types.StringNull(),
+		"resync_version":         types.Int64Null(),
 	}
 	mysqlAttrs := map[string]attr.Value{
 		"ssh_key_resource_id":    types.StringNull(),
@@ -613,6 +615,7 @@ func postgresPlanWithExcludedColumns(ctx context.Context, excludedColumns []stri
 		"table_engine":           types.StringNull(),
 		"partition_key":          types.StringNull(),
 		"partition_by_expr":      types.StringNull(),
+		"resync_version":         types.Int64Null(),
 	}
 
 	var src models.ClickPipeSourceModel

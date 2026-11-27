@@ -227,6 +227,7 @@ type ClickPipePostgresSource struct {
 	Mappings              []ClickPipePostgresTableMapping `json:"tableMappings,omitempty"`
 	TableMappingsToRemove []ClickPipePostgresTableMapping `json:"tableMappingsToRemove,omitempty"`
 	TableMappingsToAdd    []ClickPipePostgresTableMapping `json:"tableMappingsToAdd,omitempty"`
+	TableMappingsToResync []ClickPipePostgresTableMapping `json:"tableMappingsToResync,omitempty"`
 	SSHKeyResourceID      *string                         `json:"sshKeyResourceId,omitempty"`
 }
 
@@ -273,6 +274,7 @@ type ClickPipeMySQLSource struct {
 	Mappings              []ClickPipeMySQLTableMapping `json:"tableMappings,omitempty"`
 	TableMappingsToRemove []ClickPipeMySQLTableMapping `json:"tableMappingsToRemove,omitempty"`
 	TableMappingsToAdd    []ClickPipeMySQLTableMapping `json:"tableMappingsToAdd,omitempty"`
+	TableMappingsToResync []ClickPipeMySQLTableMapping `json:"tableMappingsToResync,omitempty"`
 	SSHKeyResourceID      *string                      `json:"sshKeyResourceId,omitempty"`
 }
 
@@ -320,12 +322,15 @@ type ClickPipeMongoDBColumn struct {
 
 // ClickPipeMongoDBStructuredIngestion replicates a collection into typed columns
 // instead of a single JSON document column. When Columns is nil the API infers
-// them from a sample of the collection. Automatic inference is not currently
-// available for pipes using an SSH key resource.
+// them from a sample of an added collection. A resynced collection is only
+// inferred again with ReinferColumns, which cannot be set together with Columns.
+// Automatic inference is not currently available for pipes using an SSH key
+// resource.
 type ClickPipeMongoDBStructuredIngestion struct {
 	Enabled              bool                     `json:"enabled"`
 	DropUnexpectedValues *bool                    `json:"dropUnexpectedValues,omitempty"`
 	Columns              []ClickPipeMongoDBColumn `json:"columns,omitempty"`
+	ReinferColumns       *bool                    `json:"reinferColumns,omitempty"`
 	ExcludedColumns      []string                 `json:"excludedColumns,omitempty"`
 	SortingKeys          []string                 `json:"sortingKeys,omitempty"`
 	PartitionByExpr      *string                  `json:"partitionByExpr,omitempty"`
@@ -357,6 +362,7 @@ type ClickPipeMongoDBSource struct {
 	Mappings              []ClickPipeMongoDBTableMapping `json:"tableMappings,omitempty"`
 	TableMappingsToRemove []ClickPipeMongoDBTableMapping `json:"tableMappingsToRemove,omitempty"`
 	TableMappingsToAdd    []ClickPipeMongoDBTableMapping `json:"tableMappingsToAdd,omitempty"`
+	TableMappingsToResync []ClickPipeMongoDBTableMapping `json:"tableMappingsToResync,omitempty"`
 	SSHKeyResourceID      *string                        `json:"sshKeyResourceId,omitempty"`
 }
 

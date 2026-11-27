@@ -449,6 +449,8 @@ type ClickPipePostgresTableMappingModel struct {
 	TableEngine         types.String `tfsdk:"table_engine"`
 	PartitionKey        types.String `tfsdk:"partition_key"`
 	PartitionByExpr     types.String `tfsdk:"partition_by_expr"`
+	// ResyncVersion is provider-side only, it is never sent to the API.
+	ResyncVersion types.Int64 `tfsdk:"resync_version"`
 }
 
 func (m ClickPipePostgresTableMappingModel) ObjectType() types.ObjectType {
@@ -463,6 +465,7 @@ func (m ClickPipePostgresTableMappingModel) ObjectType() types.ObjectType {
 			"table_engine":           types.StringType,
 			"partition_key":          types.StringType,
 			"partition_by_expr":      types.StringType,
+			"resync_version":         types.Int64Type,
 		},
 	}
 }
@@ -478,6 +481,7 @@ func (m ClickPipePostgresTableMappingModel) ObjectValue() types.Object {
 		"table_engine":           m.TableEngine,
 		"partition_key":          m.PartitionKey,
 		"partition_by_expr":      m.PartitionByExpr,
+		"resync_version":         m.ResyncVersion,
 	})
 }
 
@@ -804,6 +808,8 @@ type ClickPipeMySQLTableMappingModel struct {
 	TableEngine         types.String `tfsdk:"table_engine"`
 	PartitionKey        types.String `tfsdk:"partition_key"`
 	PartitionByExpr     types.String `tfsdk:"partition_by_expr"`
+	// ResyncVersion is provider-side only, it is never sent to the API.
+	ResyncVersion types.Int64 `tfsdk:"resync_version"`
 }
 
 func (m ClickPipeMySQLTableMappingModel) ObjectType() types.ObjectType {
@@ -818,6 +824,7 @@ func (m ClickPipeMySQLTableMappingModel) ObjectType() types.ObjectType {
 			"table_engine":           types.StringType,
 			"partition_key":          types.StringType,
 			"partition_by_expr":      types.StringType,
+			"resync_version":         types.Int64Type,
 		},
 	}
 }
@@ -833,6 +840,7 @@ func (m ClickPipeMySQLTableMappingModel) ObjectValue() types.Object {
 		"table_engine":           m.TableEngine,
 		"partition_key":          m.PartitionKey,
 		"partition_by_expr":      m.PartitionByExpr,
+		"resync_version":         m.ResyncVersion,
 	})
 }
 
@@ -961,32 +969,36 @@ func (m ClickPipeMongoDBColumnModel) ObjectValue() types.Object {
 // ClickPipeMongoDBStructuredIngestionModel maps to structuredIngestion in the API.
 // Its presence on a table mapping enables structured ingestion.
 type ClickPipeMongoDBStructuredIngestionModel struct {
-	DropUnexpectedValues types.Bool   `tfsdk:"drop_unexpected_values"`
-	Columns              types.List   `tfsdk:"columns"`
-	ExcludedColumns      types.Set    `tfsdk:"excluded_columns"`
-	SortingKeys          types.List   `tfsdk:"sorting_keys"`
-	PartitionByExpr      types.String `tfsdk:"partition_by_expr"`
+	DropUnexpectedValues types.Bool `tfsdk:"drop_unexpected_values"`
+	Columns              types.List `tfsdk:"columns"`
+	// ReinferColumnsOnResync is only sent to the API: it is not stored, so state keeps the configured value.
+	ReinferColumnsOnResync types.Bool   `tfsdk:"reinfer_columns_on_resync"`
+	ExcludedColumns        types.Set    `tfsdk:"excluded_columns"`
+	SortingKeys            types.List   `tfsdk:"sorting_keys"`
+	PartitionByExpr        types.String `tfsdk:"partition_by_expr"`
 }
 
 func (m ClickPipeMongoDBStructuredIngestionModel) ObjectType() types.ObjectType {
 	return types.ObjectType{
 		AttrTypes: map[string]attr.Type{
-			"drop_unexpected_values": types.BoolType,
-			"columns":                types.ListType{ElemType: ClickPipeMongoDBColumnModel{}.ObjectType()},
-			"excluded_columns":       types.SetType{ElemType: types.StringType},
-			"sorting_keys":           types.ListType{ElemType: types.StringType},
-			"partition_by_expr":      types.StringType,
+			"drop_unexpected_values":    types.BoolType,
+			"columns":                   types.ListType{ElemType: ClickPipeMongoDBColumnModel{}.ObjectType()},
+			"reinfer_columns_on_resync": types.BoolType,
+			"excluded_columns":          types.SetType{ElemType: types.StringType},
+			"sorting_keys":              types.ListType{ElemType: types.StringType},
+			"partition_by_expr":         types.StringType,
 		},
 	}
 }
 
 func (m ClickPipeMongoDBStructuredIngestionModel) ObjectValue() types.Object {
 	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
-		"drop_unexpected_values": m.DropUnexpectedValues,
-		"columns":                m.Columns,
-		"excluded_columns":       m.ExcludedColumns,
-		"sorting_keys":           m.SortingKeys,
-		"partition_by_expr":      m.PartitionByExpr,
+		"drop_unexpected_values":    m.DropUnexpectedValues,
+		"columns":                   m.Columns,
+		"reinfer_columns_on_resync": m.ReinferColumnsOnResync,
+		"excluded_columns":          m.ExcludedColumns,
+		"sorting_keys":              m.SortingKeys,
+		"partition_by_expr":         m.PartitionByExpr,
 	})
 }
 
@@ -998,6 +1010,8 @@ type ClickPipeMongoDBTableMappingModel struct {
 	// PersistDeletedDocuments maps to mongoConfig.persistDeletedDocuments in the API.
 	PersistDeletedDocuments types.Bool   `tfsdk:"persist_deleted_documents"`
 	StructuredIngestion     types.Object `tfsdk:"structured_ingestion"`
+	// ResyncVersion is provider-side only, it is never sent to the API.
+	ResyncVersion types.Int64 `tfsdk:"resync_version"`
 }
 
 func (m ClickPipeMongoDBTableMappingModel) ObjectType() types.ObjectType {
@@ -1009,6 +1023,7 @@ func (m ClickPipeMongoDBTableMappingModel) ObjectType() types.ObjectType {
 			"table_engine":              types.StringType,
 			"persist_deleted_documents": types.BoolType,
 			"structured_ingestion":      ClickPipeMongoDBStructuredIngestionModel{}.ObjectType(),
+			"resync_version":            types.Int64Type,
 		},
 	}
 }
@@ -1021,6 +1036,7 @@ func (m ClickPipeMongoDBTableMappingModel) ObjectValue() types.Object {
 		"table_engine":              m.TableEngine,
 		"persist_deleted_documents": m.PersistDeletedDocuments,
 		"structured_ingestion":      m.StructuredIngestion,
+		"resync_version":            m.ResyncVersion,
 	})
 }
 

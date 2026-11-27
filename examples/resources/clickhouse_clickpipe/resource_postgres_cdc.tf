@@ -65,6 +65,10 @@ resource "clickhouse_clickpipe" "postgres_cdc_clickpipe" {
 
         # Optional: Specify table engine (default: ReplacingMergeTree)
         # table_engine = "ReplacingMergeTree"
+
+        # Optional: Change this value to resync the table from a fresh snapshot.
+        # Changing other settings of an existing mapping requires changing it too.
+        # resync_version = 1
       }
 
       table_mappings {
