@@ -49,6 +49,35 @@ resource "clickhouse_service" "horizontal_service" {
   password_hash = "n4bQgYhMfWWaL+qgxVrQFaO/TxsrC4Is0V1sFbDwCgg=" # base64 encoded sha256 hash of "test"
 }
 
+# Restore a backup stored in your own bucket into a new service. backup_encryption_config is the
+# encryption_config.json from that bucket. It is write-only (Terraform >= 1.11), and the restored
+# service always has TDE enabled, so transparent_data_encryption.enabled must be true. backup_id cannot
+# be changed on an existing service: to restore a different backup, destroy the service and create a new one.
+resource "clickhouse_service" "restored_service" {
+  name           = "My Restored Service"
+  cloud_provider = "aws"
+  region         = "us-east-1" # must match the region of the backup's source service
+
+  ip_access = [
+    {
+      source      = "192.168.2.63"
+      description = "Test IP"
+    }
+  ]
+
+  min_replica_memory_gb = 16
+  max_replica_memory_gb = 64
+
+  backup_id                = "00000000-0000-0000-0000-000000000000"
+  backup_encryption_config = file("${path.module}/encryption_config.json")
+
+  transparent_data_encryption = {
+    enabled = true
+  }
+
+  password_hash = "n4bQgYhMfWWaL+qgxVrQFaO/TxsrC4Is0V1sFbDwCgg=" # base64 encoded sha256 hash of "test"
+}
+
 # Gen 2 hardware: profile = "v2-default". Requires an organization enabled for Gen 2 and an AWS region
 # where Gen 2 is available. Gen 2 services use a fixed size (min_replica_memory_gb == max_replica_memory_gb,
 # a fixed replica count) and can't idle. An existing service can't be switched between Gen 1 and Gen 2;
