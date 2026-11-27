@@ -54,7 +54,7 @@ func TestUpdateServiceClickhouseSettings_SendsNativeTypes(t *testing.T) {
 	got, err := client.UpdateServiceClickhouseSettings(context.Background(), "svc-1", map[string]any{
 		"compatibility":  "26.2",
 		"max_query_size": int64(262144),
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("UpdateServiceClickhouseSettings: %v", err)
 	}
@@ -72,6 +72,82 @@ func TestUpdateServiceClickhouseSettings_SendsNativeTypes(t *testing.T) {
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("UpdateServiceClickhouseSettings mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// The API rejects a null or empty settings object and an empty resetSettings list, so each is left out when unused.
+func TestUpdateServiceClickhouseSettings_OmitsUnusedFields(t *testing.T) {
+	tests := []struct {
+		name          string
+		settings      map[string]any
+		resetSettings []string
+		wantBody      string
+	}{
+		{
+			name:          "reset only",
+			settings:      map[string]any{},
+			resetSettings: []string{"compatibility", "max_query_size"},
+			wantBody:      `{"resetSettings":["compatibility","max_query_size"]}`,
+		},
+		{
+			name:     "set only",
+			settings: map[string]any{"max_query_size": int64(262144)},
+			wantBody: `{"settings":{"max_query_size":262144}}`,
+		},
+		{
+			name:          "set and reset",
+			settings:      map[string]any{"max_query_size": int64(262144)},
+			resetSettings: []string{"compatibility"},
+			wantBody:      `{"settings":{"max_query_size":262144},"resetSettings":["compatibility"]}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var gotBody string
+			client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+				body, _ := io.ReadAll(r.Body)
+				gotBody = string(body)
+				_, _ = w.Write([]byte(`{"result":{"warnings":[{"name":"compatibility","message":"restarts the service"}]}}`))
+			})
+
+			got, err := client.UpdateServiceClickhouseSettings(context.Background(), "svc-1", tt.settings, tt.resetSettings)
+			if err != nil {
+				t.Fatalf("UpdateServiceClickhouseSettings: %v", err)
+			}
+			if gotBody != tt.wantBody {
+				t.Errorf("request body = %s; want %s", gotBody, tt.wantBody)
+			}
+			if len(got.Warnings) != 1 {
+				t.Errorf("warnings = %v; want one", got.Warnings)
+			}
+		})
+	}
+}
+
+func TestGetServiceClickhouseSettingsSchema(t *testing.T) {
+	expectedPath := "/organizations/org-1/services/svc-1/clickhouseSettings/schema"
+
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Errorf("method = %q; want GET", r.Method)
+		}
+		if r.URL.Path != expectedPath {
+			t.Errorf("path = %q; want %q", r.URL.Path, expectedPath)
+		}
+		_, _ = w.Write([]byte(`{"result":{"settings":[{"name":"compatibility","type":"string","warning":"restarts the service"},{"name":"max_query_size","type":"integer","warning":""}]}}`))
+	})
+
+	got, err := client.GetServiceClickhouseSettingsSchema(context.Background(), "svc-1")
+	if err != nil {
+		t.Fatalf("GetServiceClickhouseSettingsSchema: %v", err)
+	}
+	want := []ServiceClickhouseSettingSchemaEntry{
+		{Name: "compatibility", Warning: "restarts the service"},
+		{Name: "max_query_size"},
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("GetServiceClickhouseSettingsSchema mismatch (-want +got):\n%s", diff)
 	}
 }
 
