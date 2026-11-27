@@ -57,6 +57,8 @@ resource "clickhouse_udf" "echo_string" {
   command_read_timeout       = 10000
   command_write_timeout      = 10000
   max_command_execution_time = 10
+  memory_limit_mib           = 512
+  deterministic              = true
 }
 ```
 
@@ -77,9 +79,11 @@ resource "clickhouse_udf" "echo_string" {
 
 - `command_read_timeout` (Number) Command stdout read timeout in milliseconds.
 - `command_write_timeout` (Number) Command stdin write timeout in milliseconds.
+- `deterministic` (Boolean) Whether ClickHouse may reuse cached query results for this UDF. Set it only when the UDF always returns the same result for the same arguments.
 - `fail_on_build_error` (Boolean) When true (the default), a failed build fails the apply. The failed version stays in state. Changing this setting does not create a new UDF version.
 - `format` (String) Input and output format used by the UDF command.
 - `max_command_execution_time` (Number) Maximum command execution time in seconds for executable_pool UDFs.
+- `memory_limit_mib` (Number) Maximum memory in MiB for each UDF sandbox process, from 1 to 1048576. When unset, the sandbox default applies.
 - `pool_size` (Number) Command pool size for executable_pool UDFs.
 - `return_name` (String) Name of the returned value, or null when unnamed.
 - `sandbox_type` (String) Sandbox isolation level.

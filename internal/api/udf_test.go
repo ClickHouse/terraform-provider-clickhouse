@@ -121,7 +121,8 @@ func TestUDFClientUsesExpectedAPIContract(t *testing.T) {
 		t.Fatalf("CreateUDFVersion = %+v, %v; want version 2", version, err)
 	}
 	got, err := client.GetUDF(ctx, "geocode")
-	if err != nil || got.Status != UDFStatusReady || got.PoolSize == nil || *got.PoolSize != 3 {
+	if err != nil || got.Status != UDFStatusReady || got.PoolSize == nil || *got.PoolSize != 3 ||
+		got.MemoryLimitMib == nil || *got.MemoryLimitMib != 512 || !got.Deterministic {
 		t.Fatalf("GetUDF = %+v, %v; unexpected", got, err)
 	}
 
@@ -646,6 +647,42 @@ func TestUDFServiceDependencyErrorClassification(t *testing.T) {
 	}
 }
 
+// Each version request carries the complete settings, so unset values are sent
+// as the API defaults (false and null) rather than omitted.
+func TestUDFVersionRequestSendsUnsetDeterministicAndMemoryLimit(t *testing.T) {
+	request := testUDFVersionRequest("upload-1")
+	request.MemoryLimitMib = nil
+	request.Deterministic = false
+
+	encoded, err := json.Marshal(request)
+	if err != nil {
+		t.Fatalf("encode request: %v", err)
+	}
+	var body map[string]any
+	if err := json.Unmarshal(encoded, &body); err != nil {
+		t.Fatalf("decode request: %v", err)
+	}
+	if value, ok := body["memoryLimitMib"]; !ok || value != nil {
+		t.Errorf("memoryLimitMib = %#v (present %t); want explicit null", value, ok)
+	}
+	if value, ok := body["deterministic"]; !ok || value != false {
+		t.Errorf("deterministic = %#v (present %t); want explicit false", value, ok)
+	}
+}
+
+func TestUDFResponseDecodesNullMemoryLimit(t *testing.T) {
+	response := strings.Replace(udfResponseJSON(1, UDFStatusReady), `"memoryLimitMib":512`, `"memoryLimitMib":null`, 1)
+	response = strings.Replace(response, `"deterministic":true`, `"deterministic":false`, 1)
+
+	var udf UDF
+	if err := json.Unmarshal([]byte(response), &udf); err != nil {
+		t.Fatalf("decode UDF: %v", err)
+	}
+	if udf.MemoryLimitMib != nil || udf.Deterministic {
+		t.Fatalf("memoryLimitMib = %v, deterministic = %t; want nil and false", udf.MemoryLimitMib, udf.Deterministic)
+	}
+}
+
 func assertUDFWriteBody(t *testing.T, r *http.Request, create bool) {
 	t.Helper()
 	var body map[string]any
@@ -672,11 +709,15 @@ func assertUDFWriteBody(t *testing.T, r *http.Request, create bool) {
 	if body["poolSize"] != float64(3) || body["commandReadTimeout"] != float64(10000) {
 		t.Errorf("writable config missing from request: %#v", body)
 	}
+	if body["memoryLimitMib"] != float64(512) || body["deterministic"] != true {
+		t.Errorf("memoryLimitMib/deterministic missing from request: %#v", body)
+	}
 }
 
 func testUDFVersionRequest(uploadID string) UDFVersionCreateRequest {
 	poolSize := int64(3)
 	maxExecutionTime := int64(10)
+	memoryLimit := int64(512)
 	return UDFVersionCreateRequest{
 		UploadID:                uploadID,
 		Runtime:                 UDFRuntimePython311,
@@ -687,13 +728,15 @@ func testUDFVersionRequest(uploadID string) UDFVersionCreateRequest {
 		CommandReadTimeout:      10000,
 		CommandWriteTimeout:     10000,
 		MaxCommandExecutionTime: &maxExecutionTime,
+		MemoryLimitMib:          &memoryLimit,
+		Deterministic:           true,
 		Format:                  "TabSeparated",
 		SandboxType:             UDFSandboxTypeBasic,
 	}
 }
 
 func udfResponseJSON(version int64, status string) string {
-	return `{"functionName":"geocode","version":` + jsonNumber(version) + `,"status":"` + status + `","runtime":"python3.11","type":"executable_pool","arguments":[{"name":"lat","type":"Float64"}],"returnType":"String","returnName":null,"poolSize":3,"commandReadTimeout":10000,"commandWriteTimeout":10000,"maxCommandExecutionTime":10,"sendChunkHeader":false,"format":"TabSeparated","sandboxType":"basic","sandboxVersion":"v2","error":null,"createdAt":"2026-07-21T10:00:00.000Z","updatedAt":"2026-07-21T10:00:00.000Z"}`
+	return `{"functionName":"geocode","version":` + jsonNumber(version) + `,"status":"` + status + `","runtime":"python3.11","type":"executable_pool","arguments":[{"name":"lat","type":"Float64"}],"returnType":"String","returnName":null,"poolSize":3,"commandReadTimeout":10000,"commandWriteTimeout":10000,"maxCommandExecutionTime":10,"memoryLimitMib":512,"sendChunkHeader":false,"deterministic":true,"format":"TabSeparated","sandboxType":"basic","sandboxVersion":"v2","error":null,"createdAt":"2026-07-21T10:00:00.000Z","updatedAt":"2026-07-21T10:00:00.000Z"}`
 }
 
 func attachmentResponseJSON() string {

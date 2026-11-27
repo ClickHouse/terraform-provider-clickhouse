@@ -186,8 +186,21 @@ func (r *UDFResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *
 					int64validator.AtLeast(1),
 				},
 			},
+			"memory_limit_mib": schema.Int64Attribute{
+				Description: "Maximum memory in MiB for each UDF sandbox process, from 1 to 1048576. When unset, the sandbox default applies.",
+				Optional:    true,
+				Validators: []validator.Int64{
+					int64validator.Between(1, 1048576),
+				},
+			},
 			"send_chunk_header": schema.BoolAttribute{
 				Description: "Whether ClickHouse sends a row-count chunk header.",
+				Optional:    true,
+				Computed:    true,
+				Default:     booldefault.StaticBool(false),
+			},
+			"deterministic": schema.BoolAttribute{
+				Description: "Whether ClickHouse may reuse cached query results for this UDF. Set it only when the UDF always returns the same result for the same arguments.",
 				Optional:    true,
 				Computed:    true,
 				Default:     booldefault.StaticBool(false),
@@ -467,6 +480,7 @@ func (r *UDFResource) Update(ctx context.Context, req resource.UpdateRequest, re
 	if !udfPublishInputsChanged(plan, comparisonState) {
 		state.FailOnBuildError = plan.FailOnBuildError
 		state.SourceArchivePath = plan.SourceArchivePath
+		state.Deterministic = plan.Deterministic
 		if imported {
 			state.SourceArchiveHash = plan.SourceArchiveHash
 			resp.Diagnostics.AddWarning(
@@ -696,12 +710,14 @@ func udfMatchesPublishPlan(ctx context.Context, udf *api.UDF, plan models.UDFRes
 		udf.CommandReadTimeout != request.CommandReadTimeout ||
 		udf.CommandWriteTimeout != request.CommandWriteTimeout ||
 		udf.SendChunkHeader != request.SendChunkHeader ||
+		udf.Deterministic != request.Deterministic ||
 		udf.Format != request.Format ||
 		udf.SandboxType != request.SandboxType ||
 		!equalUDFArguments(udf.Arguments, request.Arguments) ||
 		!equalUDFStringPointer(udf.ReturnName, request.ReturnName) ||
 		!equalUDFInt64Pointer(udf.PoolSize, request.PoolSize) ||
-		!equalUDFInt64Pointer(udf.MaxCommandExecutionTime, request.MaxCommandExecutionTime) {
+		!equalUDFInt64Pointer(udf.MaxCommandExecutionTime, request.MaxCommandExecutionTime) ||
+		!equalUDFInt64Pointer(udf.MemoryLimitMib, request.MemoryLimitMib) {
 		return false, "the read-after-write check found a UDF with different settings"
 	}
 
@@ -849,9 +865,21 @@ func udfPublishInputsChanged(plan, state models.UDFResourceModel) bool {
 		!plan.CommandReadTimeout.Equal(state.CommandReadTimeout) ||
 		!plan.CommandWriteTimeout.Equal(state.CommandWriteTimeout) ||
 		!plan.MaxCommandExecutionTime.Equal(state.MaxCommandExecutionTime) ||
+		!plan.MemoryLimitMib.Equal(state.MemoryLimitMib) ||
 		!plan.SendChunkHeader.Equal(state.SendChunkHeader) ||
+		udfDeterministicChanged(plan.Deterministic, state.Deterministic) ||
 		!plan.Format.Equal(state.Format) ||
 		!plan.SandboxType.Equal(state.SandboxType)
+}
+
+// udfDeterministicChanged ignores unset -> false. State written by provider
+// versions without deterministic has no value, and false is the API default, so
+// `terraform plan -refresh=false` after an upgrade must not publish a new version.
+func udfDeterministicChanged(plan, state types.Bool) bool {
+	if state.IsNull() && !plan.IsUnknown() && !plan.ValueBool() {
+		return false
+	}
+	return !plan.Equal(state)
 }
 
 func udfFailOnBuildError(state *models.UDFResourceModel) bool {
@@ -897,7 +925,9 @@ func udfVersionRequest(ctx context.Context, plan models.UDFResourceModel, upload
 		CommandReadTimeout:      plan.CommandReadTimeout.ValueInt64(),
 		CommandWriteTimeout:     plan.CommandWriteTimeout.ValueInt64(),
 		MaxCommandExecutionTime: optionalInt64Pointer(plan.MaxCommandExecutionTime),
+		MemoryLimitMib:          optionalInt64Pointer(plan.MemoryLimitMib),
 		SendChunkHeader:         plan.SendChunkHeader.ValueBool(),
+		Deterministic:           plan.Deterministic.ValueBool(),
 		Format:                  plan.Format.ValueString(),
 		SandboxType:             plan.SandboxType.ValueString(),
 	}, diags
@@ -913,6 +943,7 @@ func applyUDFToState(ctx context.Context, udf *api.UDF, state *models.UDFResourc
 	state.CommandReadTimeout = types.Int64Value(udf.CommandReadTimeout)
 	state.CommandWriteTimeout = types.Int64Value(udf.CommandWriteTimeout)
 	state.SendChunkHeader = types.BoolValue(udf.SendChunkHeader)
+	state.Deterministic = types.BoolValue(udf.Deterministic)
 	state.Format = types.StringValue(udf.Format)
 	state.SandboxType = types.StringValue(udf.SandboxType)
 	state.Version = types.Int64Value(udf.Version)
@@ -922,6 +953,7 @@ func applyUDFToState(ctx context.Context, udf *api.UDF, state *models.UDFResourc
 	state.ReturnName = stringPointerValue(udf.ReturnName)
 	state.PoolSize = int64PointerValue(udf.PoolSize)
 	state.MaxCommandExecutionTime = int64PointerValue(udf.MaxCommandExecutionTime)
+	state.MemoryLimitMib = int64PointerValue(udf.MemoryLimitMib)
 	if udf.Error == nil || strings.TrimSpace(*udf.Error) == "" {
 		state.Error = types.StringNull()
 	} else {

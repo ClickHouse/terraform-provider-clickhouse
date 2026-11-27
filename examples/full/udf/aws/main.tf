@@ -89,6 +89,9 @@ resource "clickhouse_udf" "echo_string" {
 
   source_archive_path = data.archive_file.udf.output_path
   source_archive_hash = data.archive_file.udf.output_base64sha256
+
+  memory_limit_mib = 512
+  deterministic    = true
 }
 
 resource "clickhouse_udf_attachment" "echo_string" {
