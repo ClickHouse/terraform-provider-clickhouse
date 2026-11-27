@@ -63,7 +63,7 @@ jobs:
           /tmp/langfuse-venv/bin/pip install langfuse
 
       - name: Generate release notes with Claude
-        uses: anthropics/claude-code-action@cc98b3ae241b0fcfb6a42a2690751afffecb4452 # v1.0.278
+        uses: anthropics/claude-code-action@eb56b6666facdbd501035f4a0269d8caee2e7a8b # v1.0.289
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           allowed_bots: "github-actions[bot]"
