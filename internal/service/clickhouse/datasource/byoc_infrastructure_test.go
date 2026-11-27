@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
+	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service/clickhouse/resource/models"
 )
 
 func boolPointer(v bool) *bool       { return &v }
@@ -106,7 +107,7 @@ func TestByocInfrastructureDetailsToModel_NilTagsIsKnownEmptyMap(t *testing.T) {
 	}
 }
 
-func byocInfraReadSetup(t *testing.T, privateLink bool) (*byocInfrastructureDataSource, datasource.ReadRequest, *datasource.ReadResponse, *api.ClientMock) {
+func byocInfraReadRequest(t *testing.T) (*byocInfrastructureDataSource, datasource.ReadRequest, *datasource.ReadResponse) {
 	t.Helper()
 	ctx := context.Background()
 	d := NewByocInfrastructureDataSource().(*byocInfrastructureDataSource)
@@ -124,11 +125,28 @@ func byocInfraReadSetup(t *testing.T, privateLink bool) (*byocInfrastructureData
 		Tags:                     types.MapNull(types.StringType),
 		PrivateEndpointConfig:    types.ObjectNull(byocPrivateEndpointConfigObjectType().AttrTypes),
 		CustomerAuthorizedAccess: types.ObjectNull(byocCustomerAuthorizedAccessObjectType().AttrTypes),
+		RestrictedFacts:          types.ObjectNull(models.ByocRestrictedFactsAttrTypes()),
+		Connector:                types.ObjectNull(models.ByocConnectorAttrTypes()),
 	}
 	cfgState := tfsdk.State{Schema: schemaResp.Schema}
 	if diags := cfgState.Set(ctx, &cfgModel); diags.HasError() {
 		t.Fatalf("set config: %v", diags)
 	}
+
+	req := datasource.ReadRequest{Config: tfsdk.Config{Schema: schemaResp.Schema, Raw: cfgState.Raw}}
+	resp := &datasource.ReadResponse{
+		State: tfsdk.State{
+			Schema: schemaResp.Schema,
+			Raw:    tftypes.NewValue(schemaResp.Schema.Type().TerraformType(ctx), nil),
+		},
+	}
+	return d, req, resp
+}
+
+func byocInfraReadSetup(t *testing.T, privateLink bool) (*byocInfrastructureDataSource, datasource.ReadRequest, *datasource.ReadResponse, *api.ClientMock) {
+	t.Helper()
+	ctx := context.Background()
+	d, req, resp := byocInfraReadRequest(t)
 
 	mc := minimock.NewController(t)
 	client := api.NewClientMock(mc)
@@ -151,14 +169,6 @@ func byocInfraReadSetup(t *testing.T, privateLink bool) (*byocInfrastructureData
 		Expect(ctx, "byoc-1").
 		Return(nil, errors.New("status: 404, body: BYOC infrastructure not found"))
 	d.client = client
-
-	req := datasource.ReadRequest{Config: tfsdk.Config{Schema: schemaResp.Schema, Raw: cfgState.Raw}}
-	resp := &datasource.ReadResponse{
-		State: tfsdk.State{
-			Schema: schemaResp.Schema,
-			Raw:    tftypes.NewValue(schemaResp.Schema.Type().TerraformType(ctx), nil),
-		},
-	}
 	return d, req, resp, client
 }
 
@@ -325,5 +335,61 @@ func TestByocPrivateEndpointConfigToObjectValue(t *testing.T) {
 	}
 	if got := attrs["private_dns_hostname"].(types.String).ValueString(); got != "byoc-1.us-east-1.vpce.clickhouse.cloud" {
 		t.Errorf("private_dns_hostname = %q", got)
+	}
+}
+
+func TestByocInfrastructureDataSourceReadRestrictedSkipsUnsupportedEndpoints(t *testing.T) {
+	ctx := context.Background()
+	d, req, resp := byocInfraReadRequest(t)
+
+	// Unset mocks fail the test when called: the API refuses the tags,
+	// private endpoint and customer-authorized access endpoints here.
+	mc := minimock.NewController(t)
+	client := api.NewClientMock(mc)
+	client.GetByocInfrastructureMock.
+		Expect(ctx, "byoc-1").
+		Return(&api.ByocInfrastructureDetails{
+			Id:                "byoc-1",
+			State:             api.ByocStateAwaitingConnector,
+			AccountId:         "123456789012",
+			RegionId:          "us-east-1",
+			CloudProvider:     "aws",
+			DisplayName:       "ra",
+			EnablePrivateLink: boolPointer(false),
+			AccessModel:       api.ByocAccessModelRestricted,
+			RestrictedFacts: &api.ByocRestrictedFacts{
+				ClusterName:  "ra-cluster",
+				ImageMode:    api.ByocImageModeBundle,
+				DataBucket:   "data",
+				BackupBucket: "backup",
+			},
+			Connector: &api.ByocConnector{
+				Components: []api.ByocConnectorComponent{{Name: "executor", State: "connected"}},
+			},
+		}, nil)
+	d.client = client
+
+	d.Read(ctx, req, resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("Read diagnostics: %v", resp.Diagnostics)
+	}
+	var got byocInfrastructureDataSourceModel
+	if diags := resp.State.Get(ctx, &got); diags.HasError() {
+		t.Fatalf("read state: %v", diags)
+	}
+	if got.AccessModel.ValueString() != api.ByocAccessModelRestricted {
+		t.Errorf("access_model = %v; want restricted", got.AccessModel)
+	}
+	if got.State.ValueString() != api.ByocStateAwaitingConnector {
+		t.Errorf("state = %v; want %s", got.State, api.ByocStateAwaitingConnector)
+	}
+	if got.RestrictedFacts.IsNull() || got.Connector.IsNull() {
+		t.Errorf("restricted_facts = %v, connector = %v; want both set", got.RestrictedFacts, got.Connector)
+	}
+	if got.Tags.IsNull() || len(got.Tags.Elements()) != 0 {
+		t.Errorf("tags = %v; want known empty map", got.Tags)
+	}
+	if !got.CustomerAuthorizedAccess.IsNull() || !got.PrivateEndpointConfig.IsNull() {
+		t.Error("customer_authorized_access and private_endpoint_config must be null for restricted access")
 	}
 }

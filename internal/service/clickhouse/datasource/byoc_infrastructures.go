@@ -40,6 +40,7 @@ func byocInfrastructureSummaryObjectType() types.ObjectType {
 			"region_id":      types.StringType,
 			"account_id":     types.StringType,
 			"display_name":   types.StringType,
+			"access_model":   types.StringType,
 		},
 	}
 }
@@ -58,6 +59,7 @@ func byocInfrastructuresToListValue(items []api.ByocInfrastructure) (types.List,
 			"region_id":      types.StringValue(it.RegionId),
 			"account_id":     types.StringValue(it.AccountId),
 			"display_name":   types.StringValue(it.DisplayName),
+			"access_model":   types.StringValue(byocAccessModelOrStandard(it.AccessModel)),
 		})
 		diags.Append(d...)
 		elems = append(elems, obj)
@@ -122,6 +124,10 @@ func (d *byocInfrastructuresDataSource) Schema(_ context.Context, _ datasource.S
 							Description: "Human readable name of the infrastructure.",
 							Computed:    true,
 						},
+						"access_model": schema.StringAttribute{
+							Description: "Access model of the infrastructure: 'standard' or 'restricted'. The state of a restricted-access infrastructure listed here is not read live; use the clickhouse_byoc_infrastructure data source for its current state and connector liveness.",
+							Computed:    true,
+						},
 					},
 				},
 			},
@@ -145,4 +151,11 @@ func (d *byocInfrastructuresDataSource) Read(ctx context.Context, _ datasource.R
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &byocInfrastructuresDataSourceModel{Infrastructures: list})...)
+}
+
+func byocAccessModelOrStandard(accessModel string) string {
+	if accessModel == "" {
+		return api.ByocAccessModelStandard
+	}
+	return accessModel
 }

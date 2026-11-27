@@ -156,6 +156,185 @@ func TestGetByocInfrastructure_HappyPath(t *testing.T) {
 	}
 }
 
+func TestCreateByocInfrastructure_RestrictedSendsAccessModelAndFacts(t *testing.T) {
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		got := map[string]any{}
+		if err := json.Unmarshal(body, &got); err != nil {
+			t.Fatalf("request body is not JSON: %v", err)
+		}
+		if got["accessModel"] != ByocAccessModelRestricted {
+			t.Errorf("accessModel = %v; want restricted", got["accessModel"])
+		}
+		facts, ok := got["restrictedFacts"].(map[string]any)
+		if !ok {
+			t.Fatalf("restrictedFacts missing; body = %s", body)
+		}
+		want := map[string]any{
+			"clusterName":     "ra-cluster",
+			"imageMode":       ByocImageModeDirect,
+			"executorRoleArn": "arn:aws:iam::123456789012:role/executor",
+			"nodeRoleArns":    []any{"arn:aws:iam::123456789012:role/node"},
+			"dataBucket":      "data",
+			"backupBucket":    "backup",
+			"storageRoleArn":  "arn:aws:iam::123456789012:role/storage",
+		}
+		if diff := cmp.Diff(want, facts); diff != "" {
+			t.Errorf("restrictedFacts mismatch, unset optionals must be omitted (-want +got):\n%s", diff)
+		}
+		_ = json.NewEncoder(w).Encode(ResponseWithResult[ByocInfrastructure]{Result: ByocInfrastructure{
+			Id: "byoc-1", State: ByocStateAwaitingConnector, AccessModel: ByocAccessModelRestricted,
+		}})
+	})
+
+	got, err := client.CreateByocInfrastructure(context.Background(), ByocInfrastructureCreateRequest{
+		RegionId:    "us-east-2",
+		AccountId:   "123456789012",
+		AccessModel: strPtr(ByocAccessModelRestricted),
+		RestrictedFacts: &ByocRestrictedFacts{
+			ClusterName:     "ra-cluster",
+			ImageMode:       ByocImageModeDirect,
+			ExecutorRoleArn: strPtr("arn:aws:iam::123456789012:role/executor"),
+			NodeRoleArns:    []string{"arn:aws:iam::123456789012:role/node"},
+			DataBucket:      "data",
+			BackupBucket:    "backup",
+			StorageRoleArn:  "arn:aws:iam::123456789012:role/storage",
+		},
+	})
+	if err != nil {
+		t.Fatalf("CreateByocInfrastructure: %v", err)
+	}
+	if got.State != ByocStateAwaitingConnector || !IsRestrictedAccess(got.AccessModel) {
+		t.Errorf("got %+v; want a restricted infrastructure awaiting its connector", got)
+	}
+}
+
+func TestGetByocInfrastructure_RestrictedDecodesFactsAndConnector(t *testing.T) {
+	raw := `{"result":{"id":"byoc-1","state":"infra-ready","accountId":"123456789012","regionId":"us-east-2",
+		"cloudProvider":"aws","displayName":"ra","enablePrivateLink":false,"accessModel":"restricted",
+		"restrictedFacts":{"clusterName":"ra-cluster","platformNodeGroup":"system","availabilityZones":["us-east-2a","us-east-2b","us-east-2c"],
+			"imageMode":"bundle","imageRegistry":"registry.example.com/ch","dataBucket":"data","backupBucket":"backup",
+			"storageRoleArn":"arn:aws:iam::123456789012:role/storage","enableMonitoring":false},
+		"connector":{"lastHeartbeatAt":"2026-01-01T00:00:00Z","platformState":"ready",
+			"components":[{"name":"executor","state":"connected","version":"1.2.3","lastHeartbeatAt":"2026-01-01T00:00:00Z"}]}}}`
+	client, _ := newTestClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(raw))
+	})
+
+	got, err := client.GetByocInfrastructure(context.Background(), "byoc-1")
+	if err != nil {
+		t.Fatalf("GetByocInfrastructure: %v", err)
+	}
+	wantFacts := &ByocRestrictedFacts{
+		ClusterName:       "ra-cluster",
+		PlatformNodeGroup: strPtr("system"),
+		AvailabilityZones: []string{"us-east-2a", "us-east-2b", "us-east-2c"},
+		ImageMode:         ByocImageModeBundle,
+		ImageRegistry:     strPtr("registry.example.com/ch"),
+		DataBucket:        "data",
+		BackupBucket:      "backup",
+		StorageRoleArn:    "arn:aws:iam::123456789012:role/storage",
+		EnableMonitoring:  boolPtr(false),
+	}
+	if diff := cmp.Diff(wantFacts, got.RestrictedFacts); diff != "" {
+		t.Errorf("restrictedFacts mismatch (-want +got):\n%s", diff)
+	}
+	wantConnector := &ByocConnector{
+		LastHeartbeatAt: strPtr("2026-01-01T00:00:00Z"),
+		PlatformState:   strPtr("ready"),
+		Components: []ByocConnectorComponent{
+			{Name: "executor", State: "connected", Version: strPtr("1.2.3"), LastHeartbeatAt: strPtr("2026-01-01T00:00:00Z")},
+		},
+	}
+	if diff := cmp.Diff(wantConnector, got.Connector); diff != "" {
+		t.Errorf("connector mismatch (-want +got):\n%s", diff)
+	}
+	if !IsRestrictedAccess(got.AccessModel) {
+		t.Errorf("accessModel = %q; want restricted", got.AccessModel)
+	}
+}
+
+func TestCreateByocInfrastructureEnrollmentToken(t *testing.T) {
+	cases := []struct {
+		name     string
+		ttl      *int64
+		wantBody string
+	}{
+		{name: "default ttl sends an empty object", wantBody: `{}`},
+		{name: "explicit ttl", ttl: func() *int64 { v := int64(7200); return &v }(), wantBody: `{"ttlSeconds":7200}`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != http.MethodPost {
+					t.Errorf("method = %q; want POST", r.Method)
+				}
+				if r.URL.Path != "/organizations/org-1/byocInfrastructure/byoc-1/enrollmentToken" {
+					t.Errorf("path = %q", r.URL.Path)
+				}
+				body, _ := io.ReadAll(r.Body)
+				if string(body) != tc.wantBody {
+					t.Errorf("body = %s; want %s", body, tc.wantBody)
+				}
+				_, _ = w.Write([]byte(`{"result":{"token":"enroll-secret","expiresAt":"2026-01-01T04:00:00Z"}}`))
+			})
+
+			got, err := client.CreateByocInfrastructureEnrollmentToken(context.Background(), "byoc-1", ByocEnrollmentTokenRequest{TtlSeconds: tc.ttl})
+			if err != nil {
+				t.Fatalf("CreateByocInfrastructureEnrollmentToken: %v", err)
+			}
+			want := &ByocEnrollmentToken{Token: "enroll-secret", ExpiresAt: "2026-01-01T04:00:00Z"}
+			if diff := cmp.Diff(want, got); diff != "" {
+				t.Errorf("token mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestCreateByocInfrastructure_ConflictIsClassifiable(t *testing.T) {
+	client, _ := newTestClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusConflict)
+		_, _ = w.Write([]byte(`{"error":"CONFLICT: a BYOC infrastructure is already registered"}`))
+	})
+
+	_, err := client.CreateByocInfrastructure(context.Background(), ByocInfrastructureCreateRequest{
+		RegionId:  "us-east-2",
+		AccountId: "123456789012",
+	})
+	if !IsConflict(err) {
+		t.Fatalf("err = %v; want IsConflict so the resource can suggest an import", err)
+	}
+}
+
+func TestCreateByocInfrastructureEnrollmentToken_DoesNotRetry(t *testing.T) {
+	var requests atomic.Int32
+	client, _ := newTestClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		requests.Add(1)
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"error":"transient"}`))
+	})
+
+	_, err := client.CreateByocInfrastructureEnrollmentToken(context.Background(), "byoc-1", ByocEnrollmentTokenRequest{})
+	if err == nil {
+		t.Fatal("CreateByocInfrastructureEnrollmentToken must fail on a 5xx response")
+	}
+	if got := requests.Load(); got != 1 {
+		t.Errorf("requests = %d; a mint whose response was lost must never be replayed", got)
+	}
+}
+
+func TestCreateByocInfrastructureEnrollmentToken_ConflictUntilTrustAdmitted(t *testing.T) {
+	client, _ := newTestClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusConflict)
+		_, _ = w.Write([]byte(`{"error":"cluster trust is not admitted yet"}`))
+	})
+
+	_, err := client.CreateByocInfrastructureEnrollmentToken(context.Background(), "byoc-1", ByocEnrollmentTokenRequest{})
+	if !IsConflict(err) {
+		t.Fatalf("err = %v; want IsConflict so callers can wait for trust admission", err)
+	}
+}
+
 func TestGetByocInfrastructure_NotFound(t *testing.T) {
 	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)

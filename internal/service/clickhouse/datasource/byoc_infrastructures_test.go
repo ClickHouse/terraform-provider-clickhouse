@@ -7,6 +7,7 @@ import (
 	"github.com/gojuno/minimock/v3"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
@@ -41,6 +42,7 @@ func TestByocInfrastructuresToListValue(t *testing.T) {
 			AccountId:     "gcp-project",
 			RegionId:      "us-central1",
 			CloudProvider: "gcp",
+			AccessModel:   api.ByocAccessModelRestricted,
 		},
 	})
 	if diags.HasError() {
@@ -48,6 +50,12 @@ func TestByocInfrastructuresToListValue(t *testing.T) {
 	}
 	if got := len(list.Elements()); got != 2 {
 		t.Fatalf("infrastructures length = %d; want 2", got)
+	}
+	for i, want := range []string{api.ByocAccessModelStandard, api.ByocAccessModelRestricted} {
+		got := list.Elements()[i].(types.Object).Attributes()["access_model"].(types.String).ValueString()
+		if got != want {
+			t.Errorf("infrastructures[%d].access_model = %q; want %q (absent reads as standard)", i, got, want)
+		}
 	}
 }
 

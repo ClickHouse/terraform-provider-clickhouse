@@ -32,6 +32,7 @@ type byocMockInfra struct {
 	details        api.ByocInfrastructureDetails
 	tags           map[string]string
 	customerAccess *api.ByocInfrastructureCustomerAuthorizedAccessUpdateRequest
+	tokensMinted   int
 }
 
 // byocCreateCall records one create request: the typed payload for value
@@ -48,11 +49,15 @@ type byocCreateCall struct {
 type byocMockAPI struct {
 	t *testing.T
 
-	mu            sync.Mutex
-	nextID        int
-	infras        map[string]*byocMockInfra
-	createCalls   []byocCreateCall
-	validateCount int
+	mu              sync.Mutex
+	nextID          int
+	infras          map[string]*byocMockInfra
+	createCalls     []byocCreateCall
+	validateCount   int
+	validateBodies  []api.ByocInfrastructureValidateRequest
+	tokenConflicts  int
+	tokenCalls      int
+	tokensSucceeded int
 
 	server *httptest.Server
 }
@@ -86,6 +91,11 @@ func (m *byocMockAPI) handle(w http.ResponseWriter, r *http.Request) {
 		m.handleCreate(w, r)
 	case rest == "validate" && r.Method == http.MethodPost:
 		m.validateCount++
+		var req api.ByocInfrastructureValidateRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			m.t.Errorf("invalid validate BYOC infrastructure payload: %s", err)
+		}
+		m.validateBodies = append(m.validateBodies, req)
 		writeByocResult(w, api.ByocInfrastructureValidation{
 			CloudProvider: "aws",
 			Supported:     true,
@@ -99,8 +109,24 @@ func (m *byocMockAPI) handle(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, fmt.Sprintf(`{"error":"BYOC infrastructure %s not found"}`, id), http.StatusNotFound)
 			return
 		}
+		restricted := api.IsRestrictedAccess(infra.details.AccessModel)
+		if restricted && (sub == "tags" || sub == "customerAuthorizedAccess" || sub == "privateEndpointConfig") {
+			http.Error(w, `{"error":"BAD_REQUEST: not supported for restricted-access BYOC infrastructures"}`, http.StatusBadRequest)
+			return
+		}
 		switch {
+		case sub == "enrollmentToken" && r.Method == http.MethodPost:
+			m.handleEnrollmentToken(w, infra)
 		case sub == "" && r.Method == http.MethodGet:
+			// The connector enrolls with the first minted token.
+			if restricted && infra.tokensMinted > 0 && infra.details.State == api.ByocStateAwaitingConnector {
+				infra.details.State = api.ByocStateReady
+				heartbeat := "2026-01-01T00:00:00Z"
+				infra.details.Connector = &api.ByocConnector{
+					LastHeartbeatAt: &heartbeat,
+					Components:      []api.ByocConnectorComponent{{Name: "executor", State: "connected", LastHeartbeatAt: &heartbeat}},
+				}
+			}
 			writeByocResult(w, infra.details)
 		case sub == "tags" && r.Method == http.MethodGet:
 			writeByocResult(w, struct {
@@ -161,6 +187,11 @@ func (m *byocMockAPI) handleCreate(w http.ResponseWriter, r *http.Request) {
 		displayName = *req.DisplayName
 	}
 
+	if req.AccessModel != nil && api.IsRestrictedAccess(*req.AccessModel) {
+		m.createRestricted(w, id, displayName, req, rawBody)
+		return
+	}
+
 	enabled := false
 	isByoVpc := req.VpcId != nil
 	details := api.ByocInfrastructureDetails{
@@ -196,11 +227,89 @@ func (m *byocMockAPI) handleCreate(w http.ResponseWriter, r *http.Request) {
 	writeByocResult(w, byocSummary(infra))
 }
 
+// createRestricted mirrors the API for a restricted-access registration: no
+// cloud-side settings are accepted, and the infrastructure waits for its
+// connector instead of provisioning.
+func (m *byocMockAPI) createRestricted(w http.ResponseWriter, id, displayName string, req api.ByocInfrastructureCreateRequest, rawBody map[string]json.RawMessage) {
+	for _, key := range []string{"externalId", "tenantId", "servicePrincipalClientId", "vpcCidrRange", "availabilityZoneSuffixes", "vpcId", "privateSubnetIds", "publicSubnetIds", "gcpPodCidrRangeNames", "gcpSharedVpcHostProjectId", "tags"} {
+		if _, present := rawBody[key]; present {
+			http.Error(w, fmt.Sprintf(`{"error":"BAD_REQUEST: %s is not accepted for restricted access"}`, key), http.StatusBadRequest)
+			return
+		}
+	}
+	if req.RestrictedFacts == nil {
+		http.Error(w, `{"error":"BAD_REQUEST: restrictedFacts is required"}`, http.StatusBadRequest)
+		return
+	}
+	facts := *req.RestrictedFacts
+	if facts.PlatformNodeGroup == nil {
+		system := "system"
+		facts.PlatformNodeGroup = &system
+	}
+	disabled := false
+	infra := &byocMockInfra{
+		details: api.ByocInfrastructureDetails{
+			Id:                        id,
+			State:                     api.ByocStateAwaitingConnector,
+			AccountId:                 req.AccountId,
+			RegionId:                  req.RegionId,
+			CloudProvider:             "aws",
+			DisplayName:               displayName,
+			EnablePrivateLink:         &disabled,
+			EnablePrivateLoadBalancer: &disabled,
+			EnablePublicLoadBalancer:  &disabled,
+			IsByoVpc:                  &disabled,
+			AccessModel:               api.ByocAccessModelRestricted,
+			RestrictedFacts:           &facts,
+		},
+		tags: map[string]string{},
+	}
+	m.infras[id] = infra
+	writeByocResult(w, byocSummary(infra))
+}
+
+// handleEnrollmentToken answers 409 for the first tokenConflicts calls, as
+// the API does until the cluster trust is admitted.
+func (m *byocMockAPI) handleEnrollmentToken(w http.ResponseWriter, infra *byocMockInfra) {
+	m.tokenCalls++
+	if !api.IsRestrictedAccess(infra.details.AccessModel) {
+		http.Error(w, `{"error":"BAD_REQUEST: not a restricted-access BYOC infrastructure"}`, http.StatusBadRequest)
+		return
+	}
+	if m.tokenCalls <= m.tokenConflicts {
+		http.Error(w, `{"error":"CONFLICT: cluster trust is not admitted yet"}`, http.StatusConflict)
+		return
+	}
+	infra.tokensMinted++
+	m.tokensSucceeded++
+	writeByocResult(w, api.ByocEnrollmentToken{
+		Token:     fmt.Sprintf("enroll-%s-%d", infra.details.Id, infra.tokensMinted),
+		ExpiresAt: "2026-01-01T04:00:00Z",
+	})
+}
+
+func (m *byocMockAPI) checkTokensMinted(want int) resource.TestCheckFunc {
+	return func(*terraform.State) error {
+		m.mu.Lock()
+		defer m.mu.Unlock()
+		if m.tokensSucceeded != want {
+			return fmt.Errorf("expected %d enrollment tokens minted, got %d", want, m.tokensSucceeded)
+		}
+		return nil
+	}
+}
+
 func (m *byocMockAPI) handleUpdate(w http.ResponseWriter, r *http.Request, infra *byocMockInfra) {
 	var req api.ByocInfrastructureUpdateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		m.t.Errorf("invalid update BYOC infrastructure payload: %s", err)
 		http.Error(w, "invalid payload", http.StatusBadRequest)
+		return
+	}
+	if api.IsRestrictedAccess(infra.details.AccessModel) &&
+		(req.EnablePrivateLink != nil || req.EnablePrivateLoadBalancer != nil || req.EnablePublicLoadBalancer != nil || req.GcpPscSubnetId != nil || req.Tags != nil) {
+		m.t.Errorf("restricted-access update must only send displayName, got %+v", req)
+		http.Error(w, `{"error":"BAD_REQUEST: only displayName can be updated"}`, http.StatusBadRequest)
 		return
 	}
 	if req.DisplayName != nil {
@@ -236,6 +345,7 @@ func byocSummary(infra *byocMockInfra) api.ByocInfrastructure {
 		RegionId:      infra.details.RegionId,
 		CloudProvider: infra.details.CloudProvider,
 		DisplayName:   infra.details.DisplayName,
+		AccessModel:   infra.details.AccessModel,
 	}
 }
 

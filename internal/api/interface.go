@@ -26,6 +26,7 @@ type Client interface {
 	GetByocInfrastructureCustomerAuthorizedAccess(ctx context.Context, byocId string) (*ByocInfrastructureCustomerAuthorizedAccess, error)
 	UpdateByocInfrastructureCustomerAuthorizedAccess(ctx context.Context, byocId string, r ByocInfrastructureCustomerAuthorizedAccessUpdateRequest) (*ByocInfrastructureCustomerAuthorizedAccess, error)
 	WaitForByocInfrastructureState(ctx context.Context, byocId string, stateChecker func(string) bool, maxWaitSeconds int) error
+	CreateByocInfrastructureEnrollmentToken(ctx context.Context, byocId string, r ByocEnrollmentTokenRequest) (*ByocEnrollmentToken, error)
 	GetOrgPrivateEndpointConfig(ctx context.Context, cloudProvider string, region string) (*OrgPrivateEndpointConfig, error)
 	CreateService(ctx context.Context, s Service) (*Service, string, error)
 	WaitForServiceState(ctx context.Context, serviceId string, stateChecker func(string) bool, maxWaitSeconds int) error

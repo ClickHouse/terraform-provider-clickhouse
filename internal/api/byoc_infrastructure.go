@@ -11,7 +11,8 @@ import (
 	"github.com/cenkalti/backoff/v4"
 )
 
-// BYOC infrastructure states as reported by the ClickHouse Cloud API.
+// BYOC infrastructure states as reported by the ClickHouse Cloud API. The
+// API documents state as an open string, so callers must tolerate others.
 const (
 	ByocStateProvisioning = "infra-provisioning"
 	ByocStateReady        = "infra-ready"
@@ -19,6 +20,25 @@ const (
 	ByocStateUpgrading    = "infra-upgrading"
 	ByocStateTerminating  = "infra-terminating"
 	ByocStateTerminated   = "infra-terminated"
+	// ByocStateAwaitingConnector: a restricted-access infrastructure is
+	// registered and waits for the first heartbeat of the connector the
+	// customer installs.
+	ByocStateAwaitingConnector = "infra-awaiting-connector"
+)
+
+// BYOC access models. Standard infrastructures are provisioned by ClickHouse
+// through a management role; restricted-access ones register a cluster the
+// customer owns, reached only through the connector they install.
+const (
+	ByocAccessModelStandard   = "standard"
+	ByocAccessModelRestricted = "restricted"
+)
+
+// Image modes of a restricted-access infrastructure: direct pulls platform
+// images from the ClickHouse registry, bundle from the customer's registry.
+const (
+	ByocImageModeDirect = "direct"
+	ByocImageModeBundle = "bundle"
 )
 
 // ByocInfrastructure is the BYOC infrastructure summary returned by the
@@ -30,6 +50,66 @@ type ByocInfrastructure struct {
 	RegionId      string `json:"regionId"`
 	CloudProvider string `json:"cloudProvider"`
 	DisplayName   string `json:"displayName"`
+	AccessModel   string `json:"accessModel,omitempty"`
+}
+
+// IsRestrictedAccess reports whether the infrastructure uses the restricted
+// access model. An absent access model is standard.
+func IsRestrictedAccess(accessModel string) bool {
+	return accessModel == ByocAccessModelRestricted
+}
+
+// ByocRestrictedFacts is the registration of a restricted-access
+// infrastructure: the customer cluster, the identities ClickHouse trusts, the
+// image source and the storage services use. Optional fields are pointers so
+// an omitted value is not sent and the API applies its default.
+type ByocRestrictedFacts struct {
+	ClusterName              string   `json:"clusterName"`
+	PlatformNodeGroup        *string  `json:"platformNodeGroup,omitempty"`
+	AvailabilityZones        []string `json:"availabilityZones,omitempty"`
+	NamespacePrefix          *string  `json:"namespacePrefix,omitempty"`
+	ExecutorRoleArn          *string  `json:"executorRoleArn,omitempty"`
+	NodeRoleArns             []string `json:"nodeRoleArns,omitempty"`
+	ImageMode                string   `json:"imageMode"`
+	ImageRegistry            *string  `json:"imageRegistry,omitempty"`
+	DataBucket               string   `json:"dataBucket"`
+	BackupBucket             string   `json:"backupBucket"`
+	StorageRoleArn           string   `json:"storageRoleArn"`
+	ScraperEndpoint          *string  `json:"scraperEndpoint,omitempty"`
+	EnableMonitoring         *bool    `json:"enableMonitoring,omitempty"`
+	EnableSnapshotController *bool    `json:"enableSnapshotController,omitempty"`
+	EnableAutoscaler         *bool    `json:"enableAutoscaler,omitempty"`
+}
+
+// ByocConnector is the liveness of the connector of a restricted-access
+// infrastructure. PlatformDetail is set only when the customer has to act.
+type ByocConnector struct {
+	LastHeartbeatAt *string                  `json:"lastHeartbeatAt,omitempty"`
+	Components      []ByocConnectorComponent `json:"components"`
+	PlatformState   *string                  `json:"platformState,omitempty"`
+	PlatformDetail  *string                  `json:"platformDetail,omitempty"`
+}
+
+// ByocConnectorComponent is one connector component (executor, scraper,
+// troubleshooter, ...) as it last reported.
+type ByocConnectorComponent struct {
+	Name            string  `json:"name"`
+	State           string  `json:"state"`
+	Version         *string `json:"version,omitempty"`
+	LastHeartbeatAt *string `json:"lastHeartbeatAt,omitempty"`
+}
+
+// ByocEnrollmentTokenRequest asks for a token with a lifetime of TtlSeconds
+// (whole minutes between one hour and one day); nil takes the API default.
+type ByocEnrollmentTokenRequest struct {
+	TtlSeconds *int64 `json:"ttlSeconds,omitempty"`
+}
+
+// ByocEnrollmentToken is a token the connector of a restricted-access
+// infrastructure enrolls with. The API returns it once and never again.
+type ByocEnrollmentToken struct {
+	Token     string `json:"token"`
+	ExpiresAt string `json:"expiresAt"`
 }
 
 // ByocInfrastructureDetails is the full read-back of a BYOC infrastructure,
@@ -37,43 +117,48 @@ type ByocInfrastructure struct {
 // plane. Write-only create parameters (externalId, Azure credentials, public
 // subnet IDs, availability zone suffixes) are never returned.
 type ByocInfrastructureDetails struct {
-	Id                           string   `json:"id"`
-	State                        string   `json:"state"`
-	AccountId                    string   `json:"accountId"`
-	RegionId                     string   `json:"regionId"`
-	CloudProvider                string   `json:"cloudProvider"`
-	DisplayName                  string   `json:"displayName"`
-	EnablePrivateLink            *bool    `json:"enablePrivateLink,omitempty"`
-	EnablePrivateLoadBalancer    *bool    `json:"enablePrivateLoadBalancer,omitempty"`
-	EnablePublicLoadBalancer     *bool    `json:"enablePublicLoadBalancer,omitempty"`
-	GcpPscSubnetId               *string  `json:"gcpPscSubnetId,omitempty"`
-	VpcCidrRange                 *string  `json:"vpcCidrRange,omitempty"`
-	VpcAvailabilityZoneList      []string `json:"vpcAvailabilityZoneList,omitempty"`
-	IsByoVpc                     *bool    `json:"isByoVpc,omitempty"`
-	ByoVpcId                     *string  `json:"byoVpcId,omitempty"`
-	ByoVpcPrivateSubnetIds       []string `json:"byoVpcPrivateSubnetIds,omitempty"`
-	ByoVpcPodCidrRangeNames      []string `json:"byoVpcPodCidrRangeNames,omitempty"`
-	ByoVpcSharedVpcHostProjectId *string  `json:"byoVpcSharedVpcHostProjectId,omitempty"`
+	Id                           string               `json:"id"`
+	State                        string               `json:"state"`
+	AccountId                    string               `json:"accountId"`
+	RegionId                     string               `json:"regionId"`
+	CloudProvider                string               `json:"cloudProvider"`
+	DisplayName                  string               `json:"displayName"`
+	EnablePrivateLink            *bool                `json:"enablePrivateLink,omitempty"`
+	EnablePrivateLoadBalancer    *bool                `json:"enablePrivateLoadBalancer,omitempty"`
+	EnablePublicLoadBalancer     *bool                `json:"enablePublicLoadBalancer,omitempty"`
+	GcpPscSubnetId               *string              `json:"gcpPscSubnetId,omitempty"`
+	VpcCidrRange                 *string              `json:"vpcCidrRange,omitempty"`
+	VpcAvailabilityZoneList      []string             `json:"vpcAvailabilityZoneList,omitempty"`
+	IsByoVpc                     *bool                `json:"isByoVpc,omitempty"`
+	ByoVpcId                     *string              `json:"byoVpcId,omitempty"`
+	ByoVpcPrivateSubnetIds       []string             `json:"byoVpcPrivateSubnetIds,omitempty"`
+	ByoVpcPodCidrRangeNames      []string             `json:"byoVpcPodCidrRangeNames,omitempty"`
+	ByoVpcSharedVpcHostProjectId *string              `json:"byoVpcSharedVpcHostProjectId,omitempty"`
+	AccessModel                  string               `json:"accessModel,omitempty"`
+	RestrictedFacts              *ByocRestrictedFacts `json:"restrictedFacts,omitempty"`
+	Connector                    *ByocConnector       `json:"connector,omitempty"`
 }
 
 // ByocInfrastructureCreateRequest is the payload for creating a BYOC
 // infrastructure. RegionId and AccountId are required; the rest are
 // per-cloud/per-topology options.
 type ByocInfrastructureCreateRequest struct {
-	RegionId                  string            `json:"regionId"`
-	AccountId                 string            `json:"accountId"`
-	DisplayName               *string           `json:"displayName,omitempty"`
-	ExternalId                *string           `json:"externalId,omitempty"`
-	TenantId                  *string           `json:"tenantId,omitempty"`
-	ServicePrincipalClientId  *string           `json:"servicePrincipalClientId,omitempty"`
-	VpcCidrRange              *string           `json:"vpcCidrRange,omitempty"`
-	AvailabilityZoneSuffixes  []string          `json:"availabilityZoneSuffixes,omitempty"`
-	VpcId                     *string           `json:"vpcId,omitempty"`
-	PrivateSubnetIds          []string          `json:"privateSubnetIds,omitempty"`
-	PublicSubnetIds           []string          `json:"publicSubnetIds,omitempty"`
-	GcpPodCidrRangeNames      []string          `json:"gcpPodCidrRangeNames,omitempty"`
-	GcpSharedVpcHostProjectId *string           `json:"gcpSharedVpcHostProjectId,omitempty"`
-	Tags                      map[string]string `json:"tags,omitempty"`
+	RegionId                  string               `json:"regionId"`
+	AccountId                 string               `json:"accountId"`
+	DisplayName               *string              `json:"displayName,omitempty"`
+	ExternalId                *string              `json:"externalId,omitempty"`
+	TenantId                  *string              `json:"tenantId,omitempty"`
+	ServicePrincipalClientId  *string              `json:"servicePrincipalClientId,omitempty"`
+	VpcCidrRange              *string              `json:"vpcCidrRange,omitempty"`
+	AvailabilityZoneSuffixes  []string             `json:"availabilityZoneSuffixes,omitempty"`
+	VpcId                     *string              `json:"vpcId,omitempty"`
+	PrivateSubnetIds          []string             `json:"privateSubnetIds,omitempty"`
+	PublicSubnetIds           []string             `json:"publicSubnetIds,omitempty"`
+	GcpPodCidrRangeNames      []string             `json:"gcpPodCidrRangeNames,omitempty"`
+	GcpSharedVpcHostProjectId *string              `json:"gcpSharedVpcHostProjectId,omitempty"`
+	Tags                      map[string]string    `json:"tags,omitempty"`
+	AccessModel               *string              `json:"accessModel,omitempty"`
+	RestrictedFacts           *ByocRestrictedFacts `json:"restrictedFacts,omitempty"`
 }
 
 // ByocInfrastructureValidateRequest is the payload for the preflight
@@ -81,19 +166,21 @@ type ByocInfrastructureCreateRequest struct {
 // displayName, so a payload that passes validation is not rejected by create
 // for the same inputs.
 type ByocInfrastructureValidateRequest struct {
-	RegionId                  string            `json:"regionId"`
-	AccountId                 string            `json:"accountId"`
-	ExternalId                *string           `json:"externalId,omitempty"`
-	TenantId                  *string           `json:"tenantId,omitempty"`
-	ServicePrincipalClientId  *string           `json:"servicePrincipalClientId,omitempty"`
-	VpcCidrRange              *string           `json:"vpcCidrRange,omitempty"`
-	AvailabilityZoneSuffixes  []string          `json:"availabilityZoneSuffixes,omitempty"`
-	VpcId                     *string           `json:"vpcId,omitempty"`
-	PrivateSubnetIds          []string          `json:"privateSubnetIds,omitempty"`
-	PublicSubnetIds           []string          `json:"publicSubnetIds,omitempty"`
-	GcpPodCidrRangeNames      []string          `json:"gcpPodCidrRangeNames,omitempty"`
-	GcpSharedVpcHostProjectId *string           `json:"gcpSharedVpcHostProjectId,omitempty"`
-	Tags                      map[string]string `json:"tags,omitempty"`
+	RegionId                  string               `json:"regionId"`
+	AccountId                 string               `json:"accountId"`
+	ExternalId                *string              `json:"externalId,omitempty"`
+	TenantId                  *string              `json:"tenantId,omitempty"`
+	ServicePrincipalClientId  *string              `json:"servicePrincipalClientId,omitempty"`
+	VpcCidrRange              *string              `json:"vpcCidrRange,omitempty"`
+	AvailabilityZoneSuffixes  []string             `json:"availabilityZoneSuffixes,omitempty"`
+	VpcId                     *string              `json:"vpcId,omitempty"`
+	PrivateSubnetIds          []string             `json:"privateSubnetIds,omitempty"`
+	PublicSubnetIds           []string             `json:"publicSubnetIds,omitempty"`
+	GcpPodCidrRangeNames      []string             `json:"gcpPodCidrRangeNames,omitempty"`
+	GcpSharedVpcHostProjectId *string              `json:"gcpSharedVpcHostProjectId,omitempty"`
+	Tags                      map[string]string    `json:"tags,omitempty"`
+	AccessModel               *string              `json:"accessModel,omitempty"`
+	RestrictedFacts           *ByocRestrictedFacts `json:"restrictedFacts,omitempty"`
 }
 
 // ByocInfrastructureUpdateRequest is the payload for updating a BYOC
@@ -180,9 +267,11 @@ func (c *ClientImpl) CreateByocInfrastructure(ctx context.Context, r ByocInfrast
 
 	// No retries: the API has no idempotency key, and replaying a create whose
 	// response was lost could start a duplicate hour-long provisioning.
+	// Unwrapped so callers can classify the status (IsConflict matches the
+	// "status: 409" prefix).
 	body, err := c.doRequestWithStatus(ctx, req, false)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create BYOC infrastructure: %w", err)
+		return nil, err
 	}
 
 	resp := ResponseWithResult[ByocInfrastructure]{}
@@ -287,6 +376,33 @@ func (c *ClientImpl) GetByocInfrastructureTags(ctx context.Context, byocId strin
 		return map[string]string{}, nil
 	}
 	return resp.Result.Tags, nil
+}
+
+// CreateByocInfrastructureEnrollmentToken mints an enrollment token for a
+// restricted-access infrastructure. The API answers 409 until the cluster
+// trust of the infrastructure is admitted; callers decide whether to wait.
+func (c *ClientImpl) CreateByocInfrastructureEnrollmentToken(ctx context.Context, byocId string, r ByocEnrollmentTokenRequest) (*ByocEnrollmentToken, error) {
+	payload, err := json.Marshal(r)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal create BYOC enrollment token request: %w", err)
+	}
+	req, err := http.NewRequest(http.MethodPost, c.getByocInfrastructurePath(byocId, "/enrollmentToken"), bytes.NewBuffer(payload))
+	if err != nil {
+		return nil, fmt.Errorf("failed to build create BYOC enrollment token request: %w", err)
+	}
+
+	// No retries: a replayed mint whose response was lost would issue a
+	// second live token, and its 409 would read as trust not yet admitted.
+	body, err := c.doRequestWithStatus(ctx, req, false)
+	if err != nil {
+		return nil, err
+	}
+
+	resp := ResponseWithResult[ByocEnrollmentToken]{}
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal BYOC enrollment token: %w", err)
+	}
+	return &resp.Result, nil
 }
 
 func (c *ClientImpl) GetByocInfrastructurePrivateEndpointConfig(ctx context.Context, byocId string) (*ByocInfrastructurePrivateEndpointConfig, error) {

@@ -87,7 +87,7 @@ resource "clickhouse_service" "byoc" {
 
 ### Optional
 
-- `byoc_id` (String) BYOC infrastructure ID. Required to include dynamic BYOC profiles in the result. When set, 'region_id' can be omitted and the BYOC infrastructure's region is used.
+- `byoc_id` (String) BYOC infrastructure ID. Required to include dynamic BYOC profiles in the result. When set, 'region_id' can be omitted and the BYOC infrastructure's region is used. Not supported for a restricted-access BYOC infrastructure: its services take no profile, so there is nothing to list.
 - `region_id` (String) Region to list available profiles for (e.g. 'us-east-1'). Required unless 'byoc_id' is set; when both are set it must match the BYOC infrastructure's region.
 
 ### Read-Only

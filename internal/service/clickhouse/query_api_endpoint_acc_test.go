@@ -27,6 +27,13 @@ func testAccClickHousePreCheck(t *testing.T, additionalVariables ...string) {
 	if os.Getenv("CLICKHOUSE_ACC_ALLOW_MUTATION") != "yes" {
 		t.Fatal("refusing ClickHouse Cloud acceptance mutations: set CLICKHOUSE_ACC_ALLOW_MUTATION=yes after selecting a disposable development target")
 	}
+	testAccClickHouseReadOnlyPreCheck(t, additionalVariables...)
+}
+
+// testAccClickHouseReadOnlyPreCheck checks the credentials and the target of
+// tests that only read from ClickHouse Cloud.
+func testAccClickHouseReadOnlyPreCheck(t *testing.T, additionalVariables ...string) {
+	t.Helper()
 
 	requiredVariables := []string{
 		"CLICKHOUSE_API_URL",
